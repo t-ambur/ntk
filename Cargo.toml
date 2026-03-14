@@ -1,0 +1,24 @@
+[package]
+name = "ntk"
+version = "0.1.0"
+edition = "2024"
+description = "Cross-platform network diagnostics toolkit"
+keywords = ["network", "diagnostics", "cli", "ping", "scanner"]
+categories = ["command-line-utilities", "network-programming"]
+
+[dependencies]
+# CLI
+clap = { version = "4.6.0", features = ["derive"] }
+
+# Async runtime
+tokio = { version = "1.50.0", features = ["full"] }
+
+# Networking
+pnet = "0.35"
+ipnetwork = "0.21.1"
+
+# HTTP client (for MAC vendor lookups)
+reqwest = { version = "0.13.2", features = ["json"] }
+
+# # [target.'cfg(windows)'.dependencies]
+# windows = { version = "0.62.2", features = ["Win32_Networking_WinSock", "Win32_NetworkManagement_IpHelper"] }
