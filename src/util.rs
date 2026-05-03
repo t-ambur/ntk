@@ -1,0 +1,222 @@
+use std::{net::{IpAddr, Ipv4Addr}, str::FromStr};
+
+use crate::commands::lookup;
+
+#[cfg(feature = "with-libpcap")]
+use pnet::packet::{Packet, ethernet::{EtherTypes, EthernetPacket}, icmp::{IcmpPacket, IcmpTypes, echo_reply::EchoReplyPacket}, ip::IpNextHeaderProtocols, ipv4::Ipv4Packet, tcp::TcpPacket};
+#[cfg(feature = "with-libpcap")]
+use pcap::Device;
+#[cfg(feature = "with-libpcap")]
+use crate::error::NtkError;
+
+pub fn str_to_ip(s: &str) -> Ipv4Addr {
+    assert_is_valid_ipv4(&s);
+    Ipv4Addr::from_str(s).expect("Failed to convert String slice into IPv4Addr despite asserting 'is valid IPv4'.")
+}
+
+pub fn is_valid_ipv4(s: &str) -> bool {
+    s.parse::<Ipv4Addr>().is_ok()
+}
+
+pub fn assert_is_valid_ipv4(s: &str) {
+    if !is_valid_ipv4(s) {
+        panic!("Provided String is not a valid IPv4 address!: {s}");
+    }
+}
+
+pub async fn str_or_hostname_to_ipv4(ip_str: &str) -> Ipv4Addr {
+    let ip = match is_valid_ipv4(ip_str) {
+        true => { str_to_ip(ip_str) }
+        false => {
+            let ips = lookup::hostname_to_ips(ip_str).await.unwrap_or_else(|err| panic!("Was unable to parse provided String {ip_str} into an IPv4 address! Please provide a valid IPv4 address to ping! Error: {err}"));
+            ips.into_iter()
+            .find_map(|ip| match ip {
+                IpAddr::V4(v4) => Some(v4),
+                IpAddr::V6(_) => None,
+            })
+            .unwrap_or_else(|| panic!("Was unable to parse provided String {ip_str} into an IPv4 address! Please provide a valid IPv4 address to ping!"))
+        }
+    };
+    ip
+}
+
+/// A MAC Address OCI is the first three octets
+pub fn parse_to_mac_oci(input: &str) -> Option<Vec<u8>> {
+    let parts: Vec<&str> = input.split(':').collect();
+
+    if parts.len() < 3 || parts.len() > 6 {
+        return None;
+    }
+
+    let mut bytes = Vec::new();
+
+    for part in parts {
+        if part.len() != 2 {
+            return None;
+        }
+
+        match u8::from_str_radix(part, 16) {
+            Ok(b) => bytes.push(b),
+            Err(_) => return None,
+        }
+    }
+
+    Some(bytes)
+}
+
+/// A MAC Address OCI is at least the first three octets
+pub fn assert_valid_mac_oci(input: &str) {
+    parse_to_mac_oci(input)
+        .unwrap_or_else(|| panic!("Invalid MAC/OCI format!: '{}' ... You must include at least the first three octets of a MAC Address (e.g. FF:FF:FF).", input));
+}
+
+// Ask the OS what IP we should have for the route to the host
+pub fn compute_source_ip(ip_str: &str) -> IpAddr {
+    match std::net::UdpSocket::bind("0.0.0.0:0") {
+        Ok(socket) => {
+            socket.connect((ip_str, 1)).expect("Was unable to connect to the socket to determine the source IP for the TCP request");
+            match socket.local_addr() {
+                Ok(a) => {a.ip() }
+                Err(e) => { panic!("Was unable to retrieve the local address to use a TCP IP source!: {e}") }
+            }
+        }
+        Err(e) => { panic!("Was unable to bind to the host in order to determine the source IP!: {e}") }
+    }
+}
+
+pub fn get_interface_for_target_netdev(target: &str) -> (Ipv4Addr, netdev::Interface) {
+    let source_ip = compute_source_ip(target);
+    let ipv4 = match source_ip {
+        IpAddr::V4(addr) => addr,
+        IpAddr::V6(_) => panic!("Expected IPv4 address but received IPv6 when getting source/origin interface"),
+    };
+
+    let interface = netdev::get_interfaces()
+        .into_iter()
+        .find(|iface| iface.ipv4.iter().any(|net| net.addr() == ipv4))
+        .expect("Could not match source IP to a network interface");
+
+    (ipv4, interface)
+}
+
+// Parses a TCP reply from the pcap crate
+#[cfg(feature = "with-libpcap")]
+pub fn parse_tcp_reply(data: &[u8]) -> Option<(u16, u8)> {
+    let eth = EthernetPacket::new(data)?;
+
+    // Only handle IPv4 for now; extend with IPv6 as needed.
+    if eth.get_ethertype() != EtherTypes::Ipv4 {
+        return None;
+    }
+
+    let ipv4 = Ipv4Packet::new(eth.payload())?;
+    if ipv4.get_next_level_protocol() != IpNextHeaderProtocols::Tcp {
+        return None;
+    }
+
+    let tcp = TcpPacket::new(ipv4.payload())?;
+    Some((tcp.get_source(), tcp.get_flags()))
+}
+
+// Gets the 'device' (interface) from which to capture packet responses on
+#[cfg(feature = "with-libpcap")]
+pub fn find_pcap_device(source_ip: Ipv4Addr) -> Result<Device, NtkError> {
+    let devices = Device::list()
+        .or_else(|e| Err(NtkError::LibPacketCaptureFailure(e)))?;
+    for dev in &devices {
+        for addr in &dev.addresses {
+            if let std::net::IpAddr::V4(v4) = addr.addr {
+                if v4 == source_ip {
+                    return Ok(dev.clone());
+                }
+            }
+        }
+    }
+    return Err(NtkError::IpIfAssociationError(source_ip.to_string()));
+}
+
+/// The parsed result of an inbound ICMP packet, covering both ping and traceroute use cases.
+#[cfg(feature = "with-libpcap")]
+pub enum IcmpResponse {
+    /// Final hop: destination sent an EchoReply.
+    EchoReply { seq: u16, src: IpAddr },
+    /// Intermediate hop: a router sent TimeExceeded, embedding the original
+    /// ICMP header so we can recover the sequence number.
+    TimeExceeded { seq: u16, src: IpAddr },
+}
+
+/// Parses an raw Ethernet frame into an [`IcmpResponse`].
+/// Returns `None` if the frame isn't an ICMP echo-reply or time-exceeded
+/// packet, or if any layer fails to parse.
+#[cfg(feature = "with-libpcap")]
+pub fn parse_icmp_packet(data: &[u8]) -> Option<IcmpResponse> {
+    // Ethernet → IPv4
+    let eth = EthernetPacket::new(data)?;
+    if eth.get_ethertype() != EtherTypes::Ipv4 {
+        return None;
+    }
+    let ipv4 = Ipv4Packet::new(eth.payload())?;
+    if ipv4.get_next_level_protocol() != IpNextHeaderProtocols::Icmp {
+        return None;
+    }
+
+    let src = IpAddr::V4(ipv4.get_source());
+    let icmp = IcmpPacket::new(ipv4.payload())?;
+
+    match icmp.get_icmp_type() {
+        IcmpTypes::EchoReply => {
+            let reply = EchoReplyPacket::new(icmp.packet())?;
+            Some(IcmpResponse::EchoReply { seq: reply.get_sequence_number(), src })
+        }
+
+        IcmpTypes::TimeExceeded => {
+            // TimeExceeded payload: 4 bytes unused, then the original IP header,
+            // then the first 8 bytes of the original ICMP (type, code, checksum,
+            // identifier, sequence). We need to skip past the outer ICMP header
+            // (4 bytes type/code/checksum + 4 bytes unused = 8 bytes) to reach
+            // the embedded IP header.
+            let payload = icmp.payload(); // starts after the 4-byte ICMP header
+                                          // [0..3]  = unused (4 bytes)
+                                          // [4..]   = original IP header + 8 bytes ICMP
+            let inner_ip = Ipv4Packet::new(&payload[4..])?;
+            let _inner_ip_len = (inner_ip.get_header_length() as usize) * 4;
+
+            // The original ICMP header sits immediately after the inner IP header
+            let inner_icmp_bytes = inner_ip.payload();
+            if inner_icmp_bytes.len() < 8 {
+                return None;
+            }
+            // Bytes 6-7 of an ICMP echo header are the sequence number (big-endian)
+            let seq = u16::from_be_bytes([inner_icmp_bytes[6], inner_icmp_bytes[7]]);
+
+            Some(IcmpResponse::TimeExceeded { seq, src })
+        }
+
+        _ => None,
+    }
+}
+
+// /// Convenience wrapper retained for ping, which only cares about EchoReply.
+// #[cfg(feature = "with-libpcap")]
+// pub fn parse_icmp_reply(data: &[u8]) -> Option<(u16, IpAddr)> {
+//     match parse_icmp_packet(data)? {
+//         IcmpResponse::EchoReply { seq, src } => Some((seq, src)),
+//         _ => None,
+//     }
+// }
+
+// #[cfg(feature = "with-libpcap")]
+// pub fn get_interface_for_target_libpcap(target: &str) -> (Ipv4Addr, pnet::datalink::NetworkInterface) {
+//     let source_ip = compute_source_ip(target);
+//     let ipv4 = match source_ip {
+//         IpAddr::V4(addr) => addr,
+//         IpAddr::V6(_) => panic!("Expected IPv4 address but received IPv6 when getting source/origin interface"),
+//     };
+    
+//     let interface= pnet::datalink::interfaces()
+//         .into_iter()
+//         .find(|iface| iface.ips.iter().any(|ip| ip.ip() == source_ip))
+//         .expect("Could not match source IP to a network interface");
+
+//     (ipv4, interface)
+// }

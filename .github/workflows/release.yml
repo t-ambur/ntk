@@ -1,0 +1,331 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+env:
+  BINARY_NAME: ntk
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ─────────────────────────────────────────────
+  # Job 1: GNU Linux (ubuntu-latest)
+  # ─────────────────────────────────────────────
+  build-linux-gnu:
+    name: Build Linux GNU
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Install libpcap dev
+        run: sudo apt-get install -y libpcap-dev
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: linux-gnu-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: linux-gnu-cargo-
+
+      - name: Build (no features)
+        run: cargo build --release --no-default-features --target x86_64-unknown-linux-gnu
+
+      - name: Package native binary
+        run: |
+          mkdir -p dist
+          tar -czf dist/${{ env.BINARY_NAME }}-linux-gnu-native.tar.gz \
+            -C target/x86_64-unknown-linux-gnu/release ${{ env.BINARY_NAME }}
+          rm target/x86_64-unknown-linux-gnu/release/${{ env.BINARY_NAME }}
+
+      - name: Build (with-libpcap)
+        run: cargo build --release --no-default-features --features with-libpcap --target x86_64-unknown-linux-gnu
+
+      - name: Package pcap binary
+        run: |
+          tar -czf dist/${{ env.BINARY_NAME }}-linux-gnu-pcap.tar.gz \
+            -C target/x86_64-unknown-linux-gnu/release ${{ env.BINARY_NAME }}
+          rm target/x86_64-unknown-linux-gnu/release/${{ env.BINARY_NAME }}
+
+      - name: Upload GNU artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-gnu-binaries
+          path: dist/*.tar.gz
+
+  # ─────────────────────────────────────────────
+  # Job 2: musl Linux (native Alpine container)
+  # ─────────────────────────────────────────────
+  build-linux-musl:
+    name: Build Linux musl
+    runs-on: ubuntu-latest
+    container:
+      image: alpine:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          apk add --no-cache \
+            curl \
+            bash \
+            gcc \
+            musl-dev \
+            libpcap-dev \
+            pkgconf
+
+      - name: Install Rust stable
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+            | sh -s -- -y --default-toolchain stable --profile minimal
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: linux-musl-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: linux-musl-cargo-
+
+      - name: Build (no features)
+        run: cargo build --release --no-default-features --target x86_64-unknown-linux-musl
+
+      - name: Package native binary
+        run: |
+          mkdir -p dist
+          tar -czf dist/${{ env.BINARY_NAME }}-linux-musl-native.tar.gz \
+            -C target/x86_64-unknown-linux-musl/release ${{ env.BINARY_NAME }}
+          rm target/x86_64-unknown-linux-musl/release/${{ env.BINARY_NAME }}
+
+      - name: Build (with-libpcap)
+        run: cargo build --release --no-default-features --features with-libpcap --target x86_64-unknown-linux-musl
+
+      - name: Package pcap binary
+        run: |
+          tar -czf dist/${{ env.BINARY_NAME }}-linux-musl-pcap.tar.gz \
+            -C target/x86_64-unknown-linux-musl/release ${{ env.BINARY_NAME }}
+          rm target/x86_64-unknown-linux-musl/release/${{ env.BINARY_NAME }}
+
+      - name: Upload musl artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-musl-binaries
+          path: dist/*.tar.gz
+
+  # ─────────────────────────────────────────────
+  # Job 3: Windows (windows-latest)
+  # ─────────────────────────────────────────────
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: windows-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: windows-cargo-
+
+      - name: Build (no features)
+        run: cargo build --release --no-default-features --target x86_64-pc-windows-msvc
+
+      - name: Package native binary
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist
+          Compress-Archive `
+            -Path   target\x86_64-pc-windows-msvc\release\${{ env.BINARY_NAME }}.exe `
+            -DestinationPath dist\${{ env.BINARY_NAME }}-windows-native.zip
+          Remove-Item target\x86_64-pc-windows-msvc\release\${{ env.BINARY_NAME }}.exe
+
+      - name: Build (with-libpcap)
+        run: cargo build --release --no-default-features --features with-libpcap --target x86_64-pc-windows-msvc
+
+      - name: Package pcap binary
+        shell: pwsh
+        run: |
+          Compress-Archive `
+            -Path   target\x86_64-pc-windows-msvc\release\${{ env.BINARY_NAME }}.exe `
+            -DestinationPath dist\${{ env.BINARY_NAME }}-windows-pcap.zip
+          Remove-Item target\x86_64-pc-windows-msvc\release\${{ env.BINARY_NAME }}.exe
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-binaries
+          path: dist/*.zip
+
+  # ─────────────────────────────────────────────
+  # Job 4: macOS Intel (x86_64)
+  # ─────────────────────────────────────────────
+  build-macos-intel:
+    name: Build macOS Intel
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: macos-intel-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: macos-intel-cargo-
+
+      - name: Build (no features)
+        run: cargo build --release --no-default-features --target x86_64-apple-darwin
+
+      - name: Package native binary
+        run: |
+          mkdir -p dist
+          tar -czf dist/${{ env.BINARY_NAME }}-macos-intel-native.tar.gz \
+            -C target/x86_64-apple-darwin/release ${{ env.BINARY_NAME }}
+          rm target/x86_64-apple-darwin/release/${{ env.BINARY_NAME }}
+
+      - name: Build (with-libpcap)
+        run: cargo build --release --no-default-features --features with-libpcap --target x86_64-apple-darwin
+
+      - name: Package pcap binary
+        run: |
+          tar -czf dist/${{ env.BINARY_NAME }}-macos-intel-pcap.tar.gz \
+            -C target/x86_64-apple-darwin/release ${{ env.BINARY_NAME }}
+          rm target/x86_64-apple-darwin/release/${{ env.BINARY_NAME }}
+
+      - name: Upload macOS Intel artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-intel-binaries
+          path: dist/*.tar.gz
+
+  # ─────────────────────────────────────────────
+  # Job 5: macOS Apple Silicon (aarch64)
+  # ─────────────────────────────────────────────
+  build-macos-arm:
+    name: Build macOS Apple Silicon
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: macos-arm-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: macos-arm-cargo-
+
+      - name: Build (no features)
+        run: cargo build --release --no-default-features --target aarch64-apple-darwin
+
+      - name: Package native binary
+        run: |
+          mkdir -p dist
+          tar -czf dist/${{ env.BINARY_NAME }}-macos-arm-native.tar.gz \
+            -C target/aarch64-apple-darwin/release ${{ env.BINARY_NAME }}
+          rm target/aarch64-apple-darwin/release/${{ env.BINARY_NAME }}
+
+      - name: Build (with-libpcap)
+        run: cargo build --release --no-default-features --features with-libpcap --target aarch64-apple-darwin
+
+      - name: Package pcap binary
+        run: |
+          tar -czf dist/${{ env.BINARY_NAME }}-macos-arm-pcap.tar.gz \
+            -C target/aarch64-apple-darwin/release ${{ env.BINARY_NAME }}
+          rm target/aarch64-apple-darwin/release/${{ env.BINARY_NAME }}
+
+      - name: Upload Apple Silicon artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-arm-binaries
+          path: dist/*.tar.gz
+
+  # ─────────────────────────────────────────────
+  # Job 6: GitHub Release
+  # ─────────────────────────────────────────────
+  release:
+    name: GitHub Release
+    needs: [build-linux-gnu, build-linux-musl, build-windows, build-macos-intel, build-macos-arm]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+          merge-multiple: true
+
+      # dist/ now has the shape:
+      #   dist/ntk-linux-gnu-native.tar.gz
+      #   dist/ntk-linux-gnu-pcap.tar.gz
+      #   dist/ntk-linux-musl-native.tar.gz
+      #   dist/ntk-linux-musl-pcap.tar.gz
+      #   dist/ntk-windows-native.zip
+      #   dist/ntk-windows-pcap.zip
+      #   dist/ntk-macos-intel-native.tar.gz
+      #   dist/ntk-macos-intel-pcap.tar.gz
+      #   dist/ntk-macos-arm-native.tar.gz
+      #   dist/ntk-macos-arm-pcap.tar.gz
+      - name: Create release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: dist/*
+
+  # ─────────────────────────────────────────────
+  # Job 7: Publish to crates.io
+  # ─────────────────────────────────────────────
+  # publish:
+  #   name: Publish to crates.io
+  #   needs: release
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+
+  #     - name: Install Rust stable
+  #       uses: dtolnay/rust-toolchain@stable
+
+  #     - name: Publish
+  #       run: cargo publish --no-verify
+  #       env:
+  #         CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
