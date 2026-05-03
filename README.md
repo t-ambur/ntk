@@ -56,7 +56,7 @@ The with-libpcap compiled versions of `ntk` use different packet transmit and ca
 
 # Downloading Pre-Built Binaries
 
-You can download pre-built binaries of `ntk` and `ntk.exe` on the 'releases' page here on GitHub. These binaries are built via workflows attached to this repository. Please use the latest version that is available. All of the releases for each version are compressed with the target operating system and the feature set used (either **native** or **pcap**).
+You can download pre-built binaries of `ntk` and `ntk.exe` on the [releases page here on GitHub](https://github.com/t-ambur/ntk/releases). These binaries are built via workflows attached to this repository. Please use the latest version that is available. All of the releases for each version are compressed with the target operating system and the feature set used (either **native** or **pcap**).
 
 ## Which Binary is for my Operating System
 
@@ -85,6 +85,51 @@ Use **ntk-{Binary Name}-pcap** if you want more accurate packet capture support 
 **NOTE:** I'm re-iterating this warning from [the dependencies](#dependencies) section because its important:
 The 'native' compiled versions of `ntk` may occasionally fight the operating system for reading received packet information from sockets and implies that you may need a greater understanding of the operating system's mechanisms for managing the routing of packets. This is the price of portability, unfortunately. If this is a major concern to you, use the **pcap** compiled version of the binary.
 
+## Extracting and Installing the Downloaded Binary
+
+To extract/install on Unix/Linux, from a shell:
+```sh
+# cd to the download location of ntk-archive-name.tar.gz then
+# replace '-archive-name' with the name of your downloaded binary
+tar -xf ntk-archive-name.tar.gz
+
+# the binary will be extracted standalone, e.g.:
+ls -l ntk
+# -rwxr-xr-x 1 trevor trevor 10879064 May  2 22:08 ntk
+
+# Mark the file as executable for all users
+chmod a+x ntk
+
+# Optionally, copy to a location on the $PATH
+# e.g.:
+sudo cp ntk /usr/bin/
+# Ensure the binary is executable from the $PATH
+ntk
+
+# IMPORTANT
+# Give the binary raw socket permissions without needing sudo
+# Use ./ntk if you didn't move the file to /usr/bin/ntk
+sudo setcap cap_net_raw+ep /usr/bin/ntk
+```
+
+To extract on Windows, from powershell:
+```ps1
+# cd to the download location of ntk-archive-name.tar.gz then
+# replace '-archive-name' with the name of your downloaded binary
+Expand-Archive -Path "ntk-archive-name.zip" -DestinationPath .
+
+# Ensure the file is executable
+# If nothing happens, ensure you installed npcap as described in the 'Dependencies' section of this document
+.\ntk.exe
+
+# Optionally, copy the binary into a common $PATH location for your Windows user:
+cp ntk.exe $env:LOCALAPPDATA\Microsoft\WindowsApps
+# Upon exiting powershell and opening a new one, the ntk/ntk.exe command should be available
+# IMPORTANT: ntk.exe must be executed from an administrator elevated powershell
+# Test the command executes from your $PATH:
+ntk
+```
+
 # Executing ntk
 
 Network ToolKit is executed on a command line using a shell command to your operating system. This guide was written using _bash_ on _Ubuntu_ and _powershell_ on _Windows 11_. The letter **x** appears in the documentation of the execution of subcommands to denote arbitrary input (e.g. an IP address, MAC address, URL, etc.)
@@ -97,6 +142,7 @@ First, [download the pre-built binary of your choice for your operating system](
 
 Place the binary in the desired location on your filesystem. For Unix/Linux, you will want to give the binary raw socket permissions to avoid using sudo. On Windows, you will want to execute the `ntk.exe` binary from an **administrator** enabled _powershell_ shell.
 
+If you already executed this step in the previous section on extracting the archive, then you do not need to perform this step again. This step must be performed **AFTER EACH TIME THE ntk BINARY MOVES** on the filesystem on Linux (e.g. if you executed it against ./ntk but then copied or moved ntk to /usr/bin/ntk you would have to execute this command against /usr/bin/ntk still).
 ```sh
 # Unix/Linux Only
 # Ensure you are in the same directory as the ntk binary
@@ -106,7 +152,7 @@ sudo setcap cap_net_raw+ep ntk
 # Alpine users may need to install libcap
 ```
 
-The rest of this section of the documentation on execution will reference the Network ToolKit binary as `ntk`. If you are on **Windows**, you will substitute usage of this command with `ntk.exe` instead.
+The rest of this section of the documentation on execution will reference the Network ToolKit binary as `ntk`. If you are on **Windows**, you may need to substitute usage of this command with `ntk.exe` instead. Please remember to add the path suffix if the binary is not in a _$PATH_ location (e.g. `./ntk` or `.\ntk.exe`).
 
 ## Subcommand Inference
 

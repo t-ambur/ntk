@@ -16,6 +16,7 @@ This is a mental notebook of possible TODOs on this project.
     - (needs rewrite to use libpcap for sending?, no native socket access?)
 - Traceroute/Ping to cloudflare DNS 1.1.1.1 times out on final hop
     - Warrants further investigation (EchoResponse from a different IP?)
+- When downloading using `ntk fetch -d` the archives from the release page the filenames are incorrect
 
 ## General / Misc
 - Unit tests maybe
