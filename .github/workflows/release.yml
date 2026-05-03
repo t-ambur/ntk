@@ -160,6 +160,12 @@ jobs:
             -DestinationPath dist\${{ env.BINARY_NAME }}-windows-native.zip
           Remove-Item target\x86_64-pc-windows-msvc\release\${{ env.BINARY_NAME }}.exe
 
+      - name: Fetch Npcap SDK
+        shell: pwsh
+        env:
+          NPCAP_SDK_VERSION: "1.16"
+        run: .\Get-NpcapSDK.ps1
+
       - name: Build (with-libpcap)
         run: cargo build --release --no-default-features --features with-libpcap --target x86_64-pc-windows-msvc
 
