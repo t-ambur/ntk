@@ -31,4 +31,5 @@ This is a mental notebook of possible TODOs on this project.
 - Test on Windows Server 2019/2022
 
 ## Mac
-- Test on any recent Mac OS
+- Test on ARM
+- Test on Intel

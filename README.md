@@ -88,7 +88,7 @@ The 'native' compiled versions of `ntk` may occasionally fight the operating sys
 ## Extracting and Installing the Downloaded Binary
 
 To extract/install on Unix/Linux, from a shell:
-```sh
+```bash
 # cd to the download location of ntk-archive-name.tar.gz then
 # replace '-archive-name' with the name of your downloaded binary
 tar -xf ntk-archive-name.tar.gz
@@ -143,7 +143,7 @@ First, [download the pre-built binary of your choice for your operating system](
 Place the binary in the desired location on your filesystem. For Unix/Linux, you will want to give the binary raw socket permissions to avoid using sudo. On Windows, you will want to execute the `ntk.exe` binary from an **administrator** enabled _powershell_ shell.
 
 If you already executed this step in the previous section on extracting the archive, then you do not need to perform this step again. This step must be performed **AFTER EACH TIME THE ntk BINARY MOVES** on the filesystem on Linux (e.g. if you executed it against ./ntk but then copied or moved ntk to /usr/bin/ntk you would have to execute this command against /usr/bin/ntk still).
-```sh
+```bash
 # Unix/Linux Only
 # Ensure you are in the same directory as the ntk binary
 # Or provide the path to ntk
@@ -207,8 +207,8 @@ Options:
 Some output information here obfuscated or modified for ambiguity of my devices.
 The formatting and error messages are unchanged.
 
-Example 1 (Linux or WSL2):
-Analyzing the home router on my local subnet:
+Example 1 (Linux or WSL2):  
+Analyzing the home router on my local subnet:  
 `ntk analyze 10.0.0.1 -w -i`
 ```
 Running analyze against IP: '10.0.0.1'
@@ -246,9 +246,9 @@ Request #1 to URL: https://10.0.0.1
 (No redirects)
 ```
 
-Example 2 (Linux or WSL2):
-Analyzing a remote IP from the internet:
-`ntk analyze 8.8.8.8 -w`
+Example 2 (Linux or WSL2):  
+Analyzing a remote IP from the internet:  
+`ntk analyze 8.8.8.8 -w` 
 ```
  ./ntk analyze 8.8.8.8 -w
 Running analyze against IP: '8.8.8.8'
@@ -322,8 +322,8 @@ Options:
 Some output information here obfuscated or modified for ambiguity of my devices.
 The formatting and error messages are unchanged.
 
-Example:
-Scanning all interfaces as no `--interface` flag is provided:
+Example:  
+Scanning all interfaces as no `--interface` flag is provided:  
 `ntk discover`
 ```
 Scanning all interfaces because --interface was not provided
@@ -378,8 +378,8 @@ Options:
 
 ### Examples
 
-Example 1:
-Doing what the `ntk fetch` subcommand was created for, a simple redirect test:
+Example 1:  
+Doing what the `ntk fetch` subcommand was created for, a simple redirect test:  
 `ntk fetch -i -n 8.8.8.8`
 ```
 Request #1 to URL: https://8.8.8.8
@@ -390,8 +390,8 @@ Request #2 to URL: https://dns.google/
 200
 ```
 
-Example 2:
-Downloading a large file from the internet
+Example 2:  
+Downloading a large file from the internet:  
 `ntk fetch -d https://yum.oracle.com/ISOS/OracleLinux/OL10/u1/x86_64/OracleLinux-R10-U1-x86_64-boot-uek.iso`
 ```
 Downloading...   4.88%
@@ -421,29 +421,29 @@ Options:
 
 ### Examples
 
-Example 1 (Linux or WSL2):
-The 'normal' route string you see on Linux:
+Example 1 (Linux or WSL2):  
+The 'normal' route string you see on Linux:  
 `ntk gateway`
 ```
 'eth1' routes to: '[10.0.0.1]'
 ```
 
-Example 2 (Windows):
-The 'GUID' of the Windows interface in the Linux style routing string:
+Example 2 (Windows):  
+The 'GUID' of the Windows interface in the Linux style routing string:  
 `.\ntk.exe gateway`
 ```
 '{1BFFD6E1-A5C4-47C7-B09B-2E7A6E68899C}' routes to: '[10.0.0.1]'
 ```
 
-Example 3 (Linux or WSL2):
-Showing only the gateway(s):
+Example 3 (Linux or WSL2):  
+Showing only the gateway(s):  
 `ntk g -g`
 ```
 [10.0.0.1]
 ```
 
-Example 4 (Linux or WSL2):
-Showing only the interface that connects to the gateway(s):
+Example 4 (Linux or WSL2):  
+Showing only the interface that connects to the gateway(s):  
 `ntk g -i`
 ```
 eth1
@@ -470,8 +470,8 @@ Options:
 Some output information here obfuscated or modified for ambiguity of my devices.
 The formatting and error messages are unchanged.
 
-Example 1 (Linux or WSL2):
-All interfaces neatly formatted in a table:
+Example 1 (Linux or WSL2):  
+All interfaces neatly formatted in a table:  
 `ntk interface`
 ```
 eth0       DOWN  aa:aa:aa:aa:aa:aa
@@ -480,8 +480,8 @@ lo         UP    aa:aa:aa:aa:aa:aa  127.0.0.1/8         10.255.255.254/32
 loopback0  UP    aa:aa:aa:aa:aa:aa
 ```
 
-Example 2 (Windows):
-All interfaces with the 'friendly name' of the interface above each row:
+Example 2 (Windows):  
+All interfaces with the 'friendly name' of the interface above each row:  
 `.\ntk.exe interface`
 ```
  Wi-Fi
@@ -525,8 +525,8 @@ Options:
 
 ### Examples
 
-Example 1:
-Basic IP Address to hostname:
+Example 1:  
+Basic IP Address to hostname:  
 `ntk lookup 8.8.8.8`
 ```
 dns.google
@@ -565,8 +565,8 @@ Options:
 
 ### Examples
 
-Example:
-Looking up a common router vendor/manufactorer:
+Example:  
+Looking up a common router vendor/manufactorer:  
 `ntk m e4:bf:fa`
 ```
 Vantiva USA LLC
@@ -601,15 +601,15 @@ Options:
 
 ### Examples
 
-Example 1:
-Ping the router in my local subnet:
+Example 1:  
+Ping the router in my local subnet:  
 `ntk ping 10.0.0.1`
 ```
 1   10.0.0.1         2.88ms
 ```
 
-Example 2 (WSL2 native):
-Trace the hops to google DNS:
+Example 2 (WSL2 native):  
+Trace the hops to google DNS:  
 `ntk p --t 8.8.8.8`
 ```
 1   10.0.0.1         4.55ms
@@ -678,7 +678,7 @@ The `./ubuntu-cross-check.bash` script checks the `ntk` binary is cross-compile 
 I use _bash_ to compile on Ubuntu. [Please ensure Rust is installed](#compiling). These instructions should also work on RHEL based (CentOS, Oracle Linux) operating systems as well if you substitute the package manager and package name for the appropriate ones.
 
 To compile and use **native** sockets (without libpcap):
-```sh
+```bash
 # Collect the remote repository
 git clone https://github.com/t-ambur/ntk
 cd ntk
@@ -688,7 +688,7 @@ cd ntk
 ```
 
 To compile with-libpcap:
-```sh
+```bash
 # libpcap-dev must be installed to compile against
 sudo apt update
 sudo apt install libpcap-dev
