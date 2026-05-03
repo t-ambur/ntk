@@ -162,8 +162,6 @@ jobs:
 
       - name: Fetch Npcap SDK
         shell: pwsh
-        env:
-          NPCAP_SDK_VERSION: "1.16"
         run: .\Get-NpcapSDK.ps1
 
       - name: Build (with-libpcap)
