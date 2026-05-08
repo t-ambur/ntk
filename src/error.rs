@@ -27,6 +27,11 @@ pub enum NtkError {
     HttpHeaderToStringFailure(reqwest::header::ToStrError),
     UrlParseFailure(url::ParseError),
     SemaphoreAquirePermitFailure(AcquireError),
+    #[cfg(feature = "with-libpcap")]
+    GatewayResolutionFailure(String),
+    #[cfg(feature = "with-libpcap")]
+    GatewayMacUnresolved,
+    ArpResolutionTimeout(String),
     #[cfg(not(feature = "with-libpcap"))]
     IcmpReceive(std::io::Error),
     #[cfg(not(unix))]
@@ -65,6 +70,11 @@ impl fmt::Display for NtkError {
             NtkError::HttpHeaderToStringFailure(e) => write!(f, "Failed to convert HTTP header to a string: {e}"),
             NtkError::UrlParseFailure(e) => write!(f, "Failed to parse URL: {e}"),
             NtkError::SemaphoreAquirePermitFailure(e) => write!(f, "A thread failure to acquire a lock required to perform work: {e}"),
+            #[cfg(feature = "with-libpcap")]
+            NtkError::GatewayResolutionFailure(s) => write!(f, "Unable to find the default gateway on the interface in order to send packets: {s}"),
+            #[cfg(feature = "with-libpcap")]
+            NtkError::GatewayMacUnresolved => write!(f, "The default gateway was detected but its MAC Address is 'the zero address' and is unusable as a destination."),
+            NtkError::ArpResolutionTimeout(s) => write!(f, "Timeout waiting for an ARP reply from a remote IP: {s}"),
             #[cfg(not(feature = "with-libpcap"))]
             NtkError::IcmpReceive(e) => write!(f, "Failed to receive ICMP ping packet: {e}"),
             #[cfg(not(unix))]

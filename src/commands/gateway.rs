@@ -3,6 +3,8 @@ use netdev::{get_default_interface, get_default_gateway};
 
 use crate::error::NtkError;
 
+/// Gets the default gateway 'ip route' string from the operating system.
+///   Can optionally only show the gateway IP Addresses or just the origin interface.
 pub async fn run(first_match: bool, gateways_only: bool, interface_only: bool) -> Result<String, NtkError> {
     if gateways_only {
         match get_default_gateway() {

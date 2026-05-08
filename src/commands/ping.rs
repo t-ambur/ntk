@@ -117,6 +117,8 @@ where
     Ok(RxHandle { handle, rx_pcap })
 }
 
+/// Creates a thread to listen for echo replies.
+/// Also handles creation of the bpf filter on icmp-echoreply
 #[cfg(feature = "with-libpcap")]
 async fn setup_rx_ping(
     target_ip: Ipv4Addr,
@@ -144,6 +146,7 @@ async fn setup_rx_ping(
     Ok(Some(handle))
 }
 
+/// Drains the capture thread created after all pings have been sent
 #[cfg(feature = "with-libpcap")]
 async fn rx_icmp_packets(
     timeout_seconds: u64,
@@ -191,6 +194,8 @@ async fn rx_icmp_packets(
     Ok(())
 }
 
+/// Creates a thread to listen for timeout replies.
+/// Also handles creation of the bpf filter on icmp-time-exceeded
 #[cfg(feature = "with-libpcap")]
 async fn setup_rx_traceroute(
     target_ip: Ipv4Addr,
@@ -217,6 +222,7 @@ async fn setup_rx_traceroute(
     Ok(Some(handle))
 }
 
+/// Drains the capture thread created after all (traceroute) 'pings' have been sent
 #[cfg(feature = "with-libpcap")]
 async fn rx_tr_packets(
     thread_handle: Option<RxHandle>,
@@ -267,6 +273,7 @@ async fn rx_tr_packets(
 
 // // NOT libpcap WITH unix // //
 
+/// Creates a thread to listen for echo replies.
 #[cfg(not(feature = "with-libpcap"))]
 async fn rx_icmp_packets(
     icmp_iterator: &mut IcmpTransportChannelIterator<'_>,
@@ -323,6 +330,7 @@ async fn rx_icmp_packets(
     Ok(())
 }
 
+/// Creates a thread to listen for timeout replies.
 #[cfg(not(feature = "with-libpcap"))]
 async fn rx_tr_packets(
     rx: &mut TransportReceiver,
@@ -395,7 +403,7 @@ async fn rx_tr_packets(
 
 // // Functions applicable to all
 
-// Creates an ICMP packet using the pnet crate and sends it to the IP using the provided tx TransportSender
+/// Creates an ICMP packet using the pnet crate and sends it to the IP using the provided tx TransportSender
 fn send_icmp_packets(ip: Ipv4Addr, seq_number: u8, tx: &mut TransportSender) -> Result<Duration, NtkError> {
     let mut buffer = [0u8; 64];
     let mut packet = MutableEchoRequestPacket::new(&mut buffer)
@@ -420,7 +428,7 @@ fn send_icmp_packets(ip: Ipv4Addr, seq_number: u8, tx: &mut TransportSender) -> 
     Ok(start)
 }
 
-// Runs a ping against one of three gated cfg paths
+/// Runs a ping either with-libpcap or without
 pub async fn run_ping(ip_str: &str, timeout_seconds: u8, count: u8, packet_ttl: u8) -> Result<(), NtkError> {
     // Input validation
     let ip = util::str_or_hostname_to_ipv4(ip_str).await;
@@ -464,7 +472,7 @@ pub async fn run_ping(ip_str: &str, timeout_seconds: u8, count: u8, packet_ttl: 
     Ok(())
 }
 
-
+/// Runs a traceroute either with-libpcap or without
 pub async fn run_traceroute(ip_str: &str, timeout_seconds: u8, packet_ttl: u8) -> Result<(), NtkError> {
     // Setup the tx and rx channels
     let ip = util::str_or_hostname_to_ipv4(ip_str).await;

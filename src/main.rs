@@ -17,6 +17,9 @@ async fn main() -> Result<(), NtkError> {
     Ok(())
 }
 
+/// This function nests inside main instead of being main.
+/// This is done to better handle the error code and message returned from the subcommand ran.
+/// (If an error occurs).
 async fn run() -> Result<(), NtkError> {
     let cli = Cli::parse();
 

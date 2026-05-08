@@ -12,7 +12,7 @@ use crate::error::NtkError;
 #[cfg(windows)]
 use netdev::get_interfaces;
 
-// Function to get the network interface by name or default to the first available one
+/// Function to get the network interface by name or default to the first available one
 fn get_interface(interface_name: &str) -> Result<NetworkInterface, NtkError> {
     // Get all available network interfaces
     let interfaces = datalink::interfaces();
@@ -48,6 +48,7 @@ fn get_interface(interface_name: &str) -> Result<NetworkInterface, NtkError> {
     Err(NtkError::IfNameNotFound(String::from(interface_name)))
 }
 
+/// Runs an ARP scan against either all interfaces or the specified interface name
 pub async fn run(interface_name: Option<String>, collection_time: u64) -> Result<(), NtkError> {
     match interface_name {
         Some(n) => {
@@ -75,6 +76,7 @@ pub async fn run(interface_name: Option<String>, collection_time: u64) -> Result
     Ok(())
 }
 
+/// Scans a specific pnet NetworkInterface using ARP
 pub async fn scan_interface(interface: NetworkInterface, collection_time: u64) -> Result<(), NtkError> {
     // Set up the network interface
     let interface_name = interface.name.clone();
@@ -149,7 +151,7 @@ pub async fn scan_interface(interface: NetworkInterface, collection_time: u64) -
     Ok(())
 }
 
-// Function to send an ARP request
+/// Function to send an ARP request
 pub fn send_arp_request(
     tx: &mut Box<dyn datalink::DataLinkSender>,
     source_mac: MacAddr,
@@ -198,7 +200,7 @@ pub fn send_arp_request(
     Ok(())
 }
 
-// Function to parse an ARP reply and return the sender's IP and MAC address
+/// Function to parse an ARP reply and return the sender's IP and MAC address
 pub fn parse_arp_reply(packet: &[u8]) -> Option<(Ipv4Addr, MacAddr)> {
     let ethernet = EthernetPacket::new(packet)?;
 
@@ -213,4 +215,42 @@ pub fn parse_arp_reply(packet: &[u8]) -> Option<(Ipv4Addr, MacAddr)> {
     }
 
     Some((arp.get_sender_proto_addr(), arp.get_sender_hw_addr()))
+}
+
+/// Sends a single ARP request on `pnet_interface` for `target_ip` and waits
+/// up to `timeout` for a reply. Returns the target's MAC address, or
+/// `NtkError::ArpResolutionTimeout` if no reply arrives in time.
+#[cfg(any(unix, feature = "with-libpcap"))]
+pub fn resolve_mac_for_ip(
+    pnet_interface: &NetworkInterface,
+    source_ip: Ipv4Addr,
+    target_ip: Ipv4Addr,
+    timeout: Duration,
+) -> Result<MacAddr, NtkError> {
+    let source_mac = pnet_interface.mac
+        .ok_or(NtkError::SourceMacAddressFailure(pnet_interface.name.clone()))?;
+
+    let (mut tx, mut rx) = match datalink::channel(pnet_interface, Default::default()) {
+        Ok(Ethernet(tx, rx)) => (tx, rx),
+        Ok(_) => return Err(NtkError::DatalinkUnsupportedChannel),
+        Err(e) => return Err(NtkError::DatalinkOpenFailure(e)),
+    };
+
+    send_arp_request(&mut tx, source_mac, source_ip, target_ip)?;
+
+    let deadline = Instant::now() + timeout;
+    while Instant::now() < deadline {
+        match rx.next() {
+            Ok(packet) => {
+                if let Some((ip, mac)) = parse_arp_reply(packet) {
+                    if ip == target_ip {
+                        return Ok(mac);
+                    }
+                }
+            }
+            Err(e) => return Err(NtkError::DatalinkOpenFailure(e)),
+        }
+    }
+
+    Err(NtkError::ArpResolutionTimeout(target_ip.to_string()))
 }

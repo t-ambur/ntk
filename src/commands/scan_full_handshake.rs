@@ -14,7 +14,7 @@ use std::net::{Ipv4Addr};
 const MAX_CONCURRENT: usize = 1000;
 
 
-// Function to 'scan' a single port by attempting a full TCP handshake
+/// Function to 'scan' a single port by attempting a full TCP handshake
 async fn full_tcp_handshake_port(ip: &str, port: u16) -> Option<u16> {
     // Combine the IP and port into a socket address string
     let address = format!("{}:{}", ip, port);
@@ -26,7 +26,7 @@ async fn full_tcp_handshake_port(ip: &str, port: u16) -> Option<u16> {
     }
 }
 
-// Convience function for outputing scan results across the various functions
+/// Convience function for outputing scan results across the various functions
 fn print_port(port: u16, lookup_name: bool) {
     if lookup_name {
         let common_name = port_map().get(&port).unwrap_or(&"Unknown");
@@ -36,6 +36,11 @@ fn print_port(port: u16, lookup_name: bool) {
     }
 }
 
+/// Runs a 'full TCP handshake' by attempting a normal TCP connection using the tokio crate.
+/// This is not the same as a probe scan and no packets are being crafted in this function.
+/// This function is more portable for the utility of being able to use it
+///   on operating systems such as Windows where TCP connections are commonly supported
+///     but raw socket use is not supported or not natively supported.
 pub async fn run_tcp_handshake(target_ip: Ipv4Addr, lookup_name: bool, delay: u64, start_range: Option<u16>, end_range: Option<u16>) -> Result<(), NtkError> {
     let ip = target_ip.to_string();
     let semaphore = Arc::new(Semaphore::new(MAX_CONCURRENT));

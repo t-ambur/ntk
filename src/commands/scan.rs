@@ -7,14 +7,6 @@ use pnet::packet::{MutablePacket};
 use pnet::packet::tcp::{
     MutableTcpPacket, TcpFlags
 };
-use pnet::packet::ip::IpNextHeaderProtocols;
-use pnet::transport::TransportReceiver;
-use pnet::transport::{
-    transport_channel,
-    TransportSender,
-    TransportChannelType::Layer4,
-    TransportProtocol::Ipv4
-};
 
 use std::net::{IpAddr, Ipv4Addr};
 use std::time::{Instant, Duration};
@@ -22,18 +14,45 @@ use std::time::{Instant, Duration};
 // // WITH libpcap imports // //
 #[cfg(feature = "with-libpcap")]
 use pcap::{Capture};
+
+#[cfg(feature = "with-libpcap")]
+use pnet::packet::ethernet::{EtherTypes, MutableEthernetPacket};
+#[cfg(feature = "with-libpcap")]
+use pnet::packet::ipv4::{self, MutableIpv4Packet};
+
+#[cfg(feature = "with-libpcap")]
+struct PcapSendContext {
+    cap: pcap::Capture<pcap::Active>,
+    src_mac: pnet::util::MacAddr,
+    dst_mac: pnet::util::MacAddr,
+    source_ip: Ipv4Addr,
+    target_ip: Ipv4Addr,
+    source_port: u16,
+}
 // // // //
 
 // // NOT libpcap imports // //
 #[cfg(not(feature = "with-libpcap"))]
-use pnet::transport::{tcp_packet_iter};
+use pnet::transport::{
+    TransportReceiver,
+    tcp_packet_iter,
+    transport_channel,
+    TransportSender,
+    TransportChannelType::Layer4,
+    TransportProtocol::Ipv4
+};
+#[cfg(not(feature = "with-libpcap"))]
+use pnet::packet::ip::IpNextHeaderProtocols;
 // // // //
 
-
+// Static sizes that define buffers for ETHERNET, IP, and TCP Packets
+#[cfg(feature = "with-libpcap")]
+const ETH_HEADER_LEN: usize = 14;
+#[cfg(feature = "with-libpcap")]
+const IP_HEADER_LEN: usize = 20;
 const TCP_HEADER_LEN: usize = 20;
 
-
-// Determines what window size and shift should be spoofed by our probes
+/// Determines what window size and shift should be spoofed by our probes
 fn get_os_tcp_defaults() -> (u16, u8) {
     // Returns (window_size, wscale_shift)
     match std::env::consts::OS {
@@ -44,18 +63,24 @@ fn get_os_tcp_defaults() -> (u16, u8) {
     }
 }
 
-// A SYN packet is the initial TCP handshake packet
-// You hope to see an SYN and ACK response from an open port
-fn send_syn_packet(source_ip: &Ipv4Addr, dest_ip: Ipv4Addr, dest_port: u16, tx: &mut TransportSender, source_port: u16) -> Result<(), NtkError> {
+/// A SYN packet is the initial TCP handshake packet
+/// You hope to see an SYN and ACK response from an open port
+/// This only builds the layer 4 packet buffer- libpcap needs to build layer 3 IP as well
+fn build_syn_packet(
+    source_ip: &Ipv4Addr,
+    dest_ip: Ipv4Addr,
+    dest_port: u16,
+    source_port: u16,
+) -> Result<Vec<u8>, NtkError> {
     let mut buffer = [0u8; TCP_HEADER_LEN + 20];
     let mut packet = MutableTcpPacket::new(&mut buffer)
         .ok_or(NtkError::PacketBufferTooSmall)?;
 
     let (window_size, wscale) = get_os_tcp_defaults();
-    
     packet.set_source(source_port);
     packet.set_destination(dest_port);
     packet.set_sequence(rand::random());
+    // ACK 0 here is important for starting a handshake
     packet.set_acknowledgement(0);
     packet.set_flags(TcpFlags::SYN);
     packet.set_data_offset(10);
@@ -63,106 +88,188 @@ fn send_syn_packet(source_ip: &Ipv4Addr, dest_ip: Ipv4Addr, dest_port: u16, tx: 
 
     let buf = packet.packet_mut();
     let opts = &mut buf[20..40];
-    
-    opts.fill(1); // Prefill with NOPs (No Operation) for padding
+
+    // Prefill with NOPs (No Operation) for padding
+    opts.fill(1);
 
     // MSS
-    opts[0] = 2; // MSS (Max Segment Size) - Kind 2
-    opts[1] = 4; // MSS Length (including kind and length)
-    opts[2] = 0x05; // High byte
-    opts[3] = 0xb4; // Low byte (together equal 1460)
+    // 0 - MSS (Max Segment Size) - Kind 2
+    // 1 - MSS Length (including kind and length)
+    // 2 - High byte, 3 - Low byte (together equal 1460)
+    opts[0] = 2;  opts[1] = 4;  opts[2] = 0x05; opts[3] = 0xb4;
 
-    // SACK Permitted (Selective Acknowledgement)
-    opts[4] = 4; // 
-    opts[5] = 2; // Length
+    // 4 - SACK Permitted (Selective Acknowledgement), 5 - Length
+    opts[4] = 4;  opts[5] = 2;
 
-    // Timestamps
-    opts[6] = 8; // Timestamp - Kind 8
-    opts[7] = 10; // Timestamp Length
+    // Timestamps, 6 - Kind (8), 7 - Length
+    opts[6] = 8;  opts[7] = 10;
+    // Grab the time right now for the packet
+    let tsval = (std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("time went backwards")
+        .as_millis() & 0xFFFF_FFFF) as u32;
+    // Timestamp of sender
+    opts[8..12].copy_from_slice(&tsval.to_be_bytes());
+    // Echo of tsval rx from other side (tsecr)
+    opts[12..16].copy_from_slice(&0u32.to_be_bytes());
 
-    let tsval: u32 = (std::time::SystemTime::now()
-    .duration_since(std::time::UNIX_EPOCH)
-    .expect("Failed to calculate the duration_since the UNIX EPOCH which is quite unusual as that should always be in the past.")
-    .as_millis() & 0xFFFF_FFFF) as u32;
-
-    opts[8..12].copy_from_slice(&tsval.to_be_bytes()); // of sender (1 is fine for a scanner)
-    opts[12..16].copy_from_slice(&0u32.to_be_bytes()); // echo of tsval rx from other side (tsecr)
-
-    // Window Scale - Kind 3, Length 3, Shift 
-    opts[16] = 3;
-    opts[17] = 3;
-    opts[18] = wscale;
+    // Window Scale, 16 - Kind 3, 17 - Length (3), 18 - Shift 
+    opts[16] = 3; opts[17] = 3; opts[18] = wscale;
 
     // Without a correct checksum, routers will drop the packet
-    packet.set_checksum(pnet::packet::tcp::ipv4_checksum(&packet.to_immutable(), source_ip, &dest_ip));
+    packet.set_checksum(pnet::packet::tcp::ipv4_checksum(
+        &packet.to_immutable(), source_ip, &dest_ip,
+    ));
 
     // For debugging, dumping the packet:
-    // println!("{:02x?}", packet.packet());
-    
-    match tx.send_to(packet, dest_ip.into()) {
-        Err(e) => { return Err(NtkError::PacketSendFailure(e)) }
-        _ => { }
-    };
-    Ok(())
+    // println!("DEBUG: {:02x?}", packet.packet());
+
+    // Return the packet for sending either via native OS socket or libpcap
+    Ok(buffer.to_vec())
 }
 
-// An ACK probe abuses RFC 793 where a host is supposed to respond with 'RST' to this invalid handshake
-// (i.e. a SYN should occur first but doesn't so the host follows protocol and says 'Reset')
-// ACK probes are also commonly not blocked when SYN probes are because the firewall assumes by
-// default that ACK is for an already established connection
-fn send_ack_packet(source_ip: &Ipv4Addr, dest_ip: Ipv4Addr, dest_port: u16, tx: &mut TransportSender, source_port: u16, fin_probe: bool) -> Result<(), NtkError> {
+/// An ACK probe abuses RFC 793 where a host is supposed to respond with 'RST' to this invalid handshake
+/// (i.e. a SYN should occur first but doesn't so the host follows protocol and says 'Reset')
+/// ACK probes are also commonly not blocked when SYN probes are because the firewall assumes by
+/// default that ACK is for an already established connection
+/// This only builds the layer 4 packet buffer- libpcap needs to build layer 3 IP as well
+fn build_ack_packet(
+    source_ip: &Ipv4Addr,
+    dest_ip: Ipv4Addr,
+    dest_port: u16,
+    source_port: u16,
+    fin_probe: bool,
+) -> Result<Vec<u8>, NtkError> {
     let mut buffer = [0u8; TCP_HEADER_LEN + 16];
     let mut packet = MutableTcpPacket::new(&mut buffer)
         .ok_or(NtkError::PacketBufferTooSmall)?;
-    
-    let (window_size, wscale) = get_os_tcp_defaults();
 
+    let (window_size, wscale) = get_os_tcp_defaults();
     packet.set_source(source_port);
     packet.set_destination(dest_port);
     packet.set_sequence(rand::random());
+    // ACK random here is important to make the receiver believe this is a valid ACK packet (don't use 0)
     packet.set_acknowledgement(rand::random());
+    // Offset buffer size is slightly smaller
     packet.set_data_offset(9);
     packet.set_window(window_size);
-
-    if fin_probe {
-        packet.set_flags(TcpFlags::FIN);
-    } else {
-        packet.set_flags(TcpFlags::ACK);
-    }
+    packet.set_flags(if fin_probe { TcpFlags::FIN } else { TcpFlags::ACK });
 
     let buf = packet.packet_mut();
     let opts = &mut buf[20..36];
-    
-    opts.fill(1); // Prefill with NOPs (No Operation) for padding
 
-    // Timestamps
-    opts[0] = 8; // Timestamp - Kind 8
-    opts[1] = 10; // Timestamp Length
+    // Prefill with NOPs (No Operation) for padding
+    opts.fill(1);
 
-    let tsval: u32 = (std::time::SystemTime::now()
-    .duration_since(std::time::UNIX_EPOCH)
-    .expect("Failed to calculate the duration_since the UNIX EPOCH which is quite unusual as that should always be in the past.")
-    .as_millis() & 0xFFFF_FFFF) as u32;
+    // Timestamps, 0 - Kind (8), 1 - Length (10)
+    opts[0] = 8; opts[1] = 10;
+    // Get the current time
+    let tsval = (std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("time went backwards")
+        .as_millis() & 0xFFFF_FFFF) as u32;
+    // Timestamp of sender
+    opts[2..6].copy_from_slice(&tsval.to_be_bytes());
+    // echo of tsval rx from other side (tsecr)
+    opts[6..10].copy_from_slice(&0u32.to_be_bytes());
 
-    opts[2..6].copy_from_slice(&tsval.to_be_bytes()); // of sender (1 is fine for a scanner)
-    opts[6..10].copy_from_slice(&0u32.to_be_bytes()); // echo of tsval rx from other side (tsecr)
-
-    // Window Scale - Kind 3, Length 3, Shift 
-    opts[10] = 3;
-    opts[11] = 3;
-    opts[12] = wscale;
+    // Window Scale, 10 - Kind (3), 11 - Length (3), 12 - Shift 
+    opts[10] = 3; opts[11] = 3; opts[12] = wscale;
 
     // Without a correct checksum, routers will drop the packet
-    packet.set_checksum(pnet::packet::tcp::ipv4_checksum(&packet.to_immutable(), source_ip, &dest_ip));
+    packet.set_checksum(pnet::packet::tcp::ipv4_checksum(
+        &packet.to_immutable(), source_ip, &dest_ip,
+    ));
 
-    match tx.send_to(packet, dest_ip.into()) {
-        Err(e) => { return Err(NtkError::PacketSendFailure(e)) }
-        _ => { }
-    };
+    // Return the packet for sending either via native OS socket or libpcap
+    Ok(buffer.to_vec())
+}
+
+/// Wraps an already-checksummed TCP payload in IPv4 + Ethernet headers
+///   and sends it via pcap, bypassing the OS TCP stack entirely.
+/// Libpcap operates at the datalink layer so we must supply the full frame —
+///   Ethernet header + IP header + TCP payload — for every send.
+/// The destination MAC in ctx determines the next hop
+/// (target directly if on-link, gateway if off-link).
+#[cfg(feature = "with-libpcap")]
+fn pcap_send_tcp(ctx: &mut PcapSendContext, tcp_payload: &[u8]) -> Result<(), NtkError> {
+    let ip_total_len = IP_HEADER_LEN + tcp_payload.len();
+    let frame_len = ETH_HEADER_LEN + ip_total_len;
+    let mut frame = vec![0u8; frame_len];
+
+    // libpcap requires the Ethernet Packet frame buffer
+    {
+        let mut eth = MutableEthernetPacket::new(&mut frame)
+            .ok_or(NtkError::PacketBufferTooSmall)?;
+        eth.set_destination(ctx.dst_mac);
+        eth.set_source(ctx.src_mac);
+        eth.set_ethertype(EtherTypes::Ipv4);
+    }
+    // And the IP Packet buffer
+    {
+        let mut ip = MutableIpv4Packet::new(&mut frame[ETH_HEADER_LEN..])
+            .ok_or(NtkError::PacketBufferTooSmall)?;
+        ip.set_version(4);
+        ip.set_header_length(5);
+        ip.set_dscp(0);
+        ip.set_ecn(0);
+        ip.set_total_length(ip_total_len as u16);
+        ip.set_identification(rand::random());
+        ip.set_flags(pnet::packet::ipv4::Ipv4Flags::DontFragment);
+        ip.set_fragment_offset(0);
+        ip.set_ttl(64);
+        ip.set_next_level_protocol(pnet::packet::ip::IpNextHeaderProtocols::Tcp);
+        ip.set_source(ctx.source_ip);
+        ip.set_destination(ctx.target_ip);
+        ip.set_checksum(ipv4::checksum(&ip.to_immutable()));
+    }
+
+    frame[ETH_HEADER_LEN + IP_HEADER_LEN..].copy_from_slice(tcp_payload);
+
+    ctx.cap.sendpacket(&*frame)
+        .map_err(NtkError::LibPacketCaptureFailure)
+}
+
+/// Builds and sends a single SYN probe packet.
+/// Relies on pnet (or the OS) to construct the Ethernet and IP frames
+#[cfg(not(feature = "with-libpcap"))]
+fn send_syn_packet(
+    source_ip: &Ipv4Addr,
+    dest_ip: Ipv4Addr,
+    dest_port: u16,
+    tx: &mut TransportSender,
+    source_port: u16,
+) -> Result<(), NtkError> {
+    let mut bytes = build_syn_packet(source_ip, dest_ip, dest_port, source_port)?;
+    tx.send_to(
+        MutableTcpPacket::new(&mut bytes).ok_or(NtkError::PacketBufferTooSmall)?,
+        dest_ip.into(),
+    ).map_err(NtkError::PacketSendFailure)?;
     Ok(())
 }
 
-// Handles the common transport setup (primarily for sending) between the functions
+/// Builds and sends a single ACK (or FIN) probe packet.
+/// Relies on pnet (or the OS) to construct the Ethernet and IP frames
+#[cfg(not(feature = "with-libpcap"))]
+fn send_ack_packet(
+    source_ip: &Ipv4Addr,
+    dest_ip: Ipv4Addr,
+    dest_port: u16,
+    tx: &mut TransportSender,
+    source_port: u16,
+    fin_probe: bool,
+) -> Result<(), NtkError> {
+    let mut bytes = build_ack_packet(source_ip, dest_ip, dest_port, source_port, fin_probe)?;
+    tx.send_to(
+        MutableTcpPacket::new(&mut bytes).ok_or(NtkError::PacketBufferTooSmall)?,
+        dest_ip.into(),
+    ).map_err(NtkError::PacketSendFailure)?;
+    Ok(())
+}
+
+/// Handles the transport setup (i.e. the channels)
+/// This variant is for non-libpcap (i.e. native socket mode)
+#[cfg(not(feature = "with-libpcap"))]
 async fn handle_transport_setup(ip_str: &str,  user_source_port: Option<u16>)
     -> Result<
         (Ipv4Addr, u16, TransportSender, TransportReceiver, Ipv4Addr, Instant),
@@ -187,10 +294,86 @@ async fn handle_transport_setup(ip_str: &str,  user_source_port: Option<u16>)
     Ok((target_ip, source_port, tx, rx, source_ip, start))
 }
 
+/// Handles the common transport setup
+/// This variant is for libpcap enabled builds
+#[cfg(feature = "with-libpcap")]
+async fn handle_transport_setup_pcap(
+    ip_str: &str,
+    user_source_port: Option<u16>,
+) -> Result<(PcapSendContext, Instant), NtkError> {
+    let target_ip = util::str_or_hostname_to_ipv4(ip_str).await;
+    let source_port = user_source_port
+        .unwrap_or_else(|| rand::random_range(32768..61000));
+
+    let source_ip = match util::compute_source_ip(ip_str) {
+        IpAddr::V4(ip) => ip,
+        IpAddr::V6(_) => return Err(NtkError::Ipv6FoundError),
+    };
+
+    // Get the netdev interface for gateway MAC already resolved by the OS
+    let nd_iface = netdev::get_interfaces()
+        .into_iter()
+        .find(|i| i.ipv4.iter().any(|net| net.addr() == source_ip))
+        .ok_or(NtkError::IpIfAssociationError(source_ip.to_string()))?;
+
+    let src_mac = nd_iface.mac_addr
+        .ok_or(NtkError::SourceMacAddressFailure(nd_iface.name.clone()))
+        .map(|m| { let o = m.octets(); pnet::util::MacAddr(o[0],o[1],o[2],o[3],o[4],o[5]) })?;
+
+    let on_link = nd_iface.ipv4.iter()
+        .any(|net| net.contains(&target_ip));
+
+    let dst_mac = if on_link {
+        // Same subnet: must ARP for the target directly (First hop Mac required in packet)
+        let pnet_iface = pnet::datalink::interfaces()
+            .into_iter()
+            .find(|i| i.ips.iter().any(|net| net.ip() == IpAddr::V4(source_ip)))
+            .ok_or(NtkError::IpIfAssociationError(source_ip.to_string()))?;
+        crate::commands::discover::resolve_mac_for_ip(
+            &pnet_iface,
+            source_ip,
+            target_ip,
+            Duration::from_secs(3),
+        )?
+    } else {
+        // Off-subnet: netdev already resolved the gateway MAC from the OS —
+        // no ARP packet needed
+        let gw = nd_iface.gateway
+            .ok_or(NtkError::GatewayResolutionFailure("no gateway on interface".into()))?;
+        let zero = netdev::MacAddr::new(0, 0, 0, 0, 0, 0);
+        if gw.mac_addr == zero {
+            return Err(NtkError::GatewayMacUnresolved);
+        }
+        let o = gw.mac_addr.octets();
+        pnet::util::MacAddr(o[0], o[1], o[2], o[3], o[4], o[5])
+    };
+
+    let send_cap = Capture::from_device(util::find_pcap_device(source_ip)?)
+        .map_err(NtkError::LibPacketCaptureFailure)?
+        .timeout(200)
+        .snaplen(256)
+        .open()
+        .map_err(NtkError::LibPacketCaptureFailure)?;
+
+    let ctx = PcapSendContext {
+        cap: send_cap,
+        src_mac,
+        dst_mac,
+        source_ip,
+        target_ip,
+        source_port,
+    };
+
+    Ok((ctx, Instant::now()))
+}
+
+/// Creates channels applicable to the with-libpcap feature or without (i.e. native socket)
+///   and sends TCP SYN probe packets to the target IP.
+/// By default will scan an internal array of the 1000 most commonly used ports for 'open' status.
 pub async fn run_tcp_syn_probe(ip_str: &str, lookup_name: bool, delay: u64, start_range: Option<u16>, end_range: Option<u16>, timeout_seconds: u8, show_reset: bool, user_source_port: Option<u16>) -> Result<(), NtkError> {
     #[cfg(feature = "with-libpcap")]
-    let (target_ip, source_port, mut tx, _rx, source_ip, start)
-        = handle_transport_setup(ip_str, user_source_port).await?;
+    let (mut ctx, start)
+        = handle_transport_setup_pcap(ip_str, user_source_port).await?;
     
     #[cfg(not(feature = "with-libpcap"))]
     let (target_ip, source_port, mut tx, rx, source_ip, start)
@@ -201,7 +384,7 @@ pub async fn run_tcp_syn_probe(ip_str: &str, lookup_name: bool, delay: u64, star
     #[cfg(feature = "with-libpcap")]
     let deadline = start + Duration::from_secs(timeout_seconds);
     #[cfg(feature = "with-libpcap")]
-    let handle = open_capture_thread(source_ip, source_port, target_ip, deadline, show_reset)?;
+    let handle = open_capture_thread(ctx.source_ip, ctx.source_port, ctx.target_ip, deadline, show_reset)?;
 
     #[cfg(not(feature = "with-libpcap"))]
     let _handle = open_capture_thread(rx, start, timeout_seconds, source_port, target_ip, lookup_name, show_reset)?;
@@ -209,10 +392,21 @@ pub async fn run_tcp_syn_probe(ip_str: &str, lookup_name: bool, delay: u64, star
     // println!("DEBUG: Sending from: {} on port {} to {}", source_ip, source_port, target_ip);
     for port in PortIter::new(start_range, end_range) {
         // println!("Sending: {}", port);
-        match send_syn_packet(&source_ip, target_ip, port, &mut tx, source_port) {
-            Ok(()) => {}
-            Err(e) => { return Err(e); }
-        };
+        #[cfg(not(feature = "with-libpcap"))]
+        {
+            match send_syn_packet(&source_ip, target_ip, port, &mut tx, source_port) {
+                Ok(()) => {}
+                Err(e) => { return Err(e); }
+            };
+        }
+        #[cfg(feature = "with-libpcap")]
+        {
+            let tcp_bytes = build_syn_packet(&ctx.source_ip, ctx.target_ip, port, ctx.source_port)?;
+            match pcap_send_tcp(&mut ctx, &tcp_bytes) {
+                Ok(()) => {}
+                Err(e) => { return Err(e); }
+            };
+        }
         tokio::time::sleep(Duration::from_millis(delay)).await;
     }
 
@@ -225,10 +419,14 @@ pub async fn run_tcp_syn_probe(ip_str: &str, lookup_name: bool, delay: u64, star
     Ok(())
 }
 
+/// Creates channels applicable to the with-libpcap feature or without (i.e. native socket)
+///   and sends TCP ACK (or FIN) probe packets to the target IP.
+/// For these ACK scans you expect 'RST' (reset) responses instead of 'open'.
+/// By default will scan an internal array of the 1000 most commonly used ports for 'open' status.
 pub async fn run_tcp_ack_probe(ip_str: &str, lookup_name: bool, delay: u64, start_range: Option<u16>, end_range: Option<u16>, timeout_seconds: u8, user_source_port: Option<u16>, fin_probe: bool) -> Result<(), NtkError> {
     #[cfg(feature = "with-libpcap")]
-    let (target_ip, source_port, mut tx, _rx, source_ip, start)
-        = handle_transport_setup(ip_str, user_source_port).await?;
+    let (mut ctx, start)
+        = handle_transport_setup_pcap(ip_str, user_source_port).await?;
     
     #[cfg(not(feature = "with-libpcap"))]
     let (target_ip, source_port, mut tx, rx, source_ip, start)
@@ -239,7 +437,7 @@ pub async fn run_tcp_ack_probe(ip_str: &str, lookup_name: bool, delay: u64, star
     #[cfg(feature = "with-libpcap")]
     let deadline = start + Duration::from_secs(timeout_seconds);
     #[cfg(feature = "with-libpcap")]
-    let handle = open_capture_thread_ack(source_ip, source_port, target_ip, deadline)?;
+    let handle = open_capture_thread_ack(ctx.source_ip, ctx.source_port, ctx.target_ip, deadline)?;
 
     #[cfg(not(feature = "with-libpcap"))]
     let _handle = open_capture_thread_ack(rx, start, timeout_seconds, source_port, target_ip, lookup_name)?;
@@ -247,10 +445,21 @@ pub async fn run_tcp_ack_probe(ip_str: &str, lookup_name: bool, delay: u64, star
     // println!("DEBUG: Sending from: {} on port {} to {}", source_ip, source_port, target_ip);
     for port in PortIter::new(start_range, end_range) {
         // println!("Sending: {}", port);
-        match send_ack_packet(&source_ip, target_ip, port, &mut tx, source_port, fin_probe) {
-            Ok(()) => {}
-            Err(e) => { return Err(e); }
-        };
+        #[cfg(not(feature = "with-libpcap"))]
+        {
+            match send_ack_packet(&source_ip, target_ip, port, &mut tx, source_port, fin_probe) {
+                Ok(()) => {}
+                Err(e) => { return Err(e); }
+            };
+        }
+        #[cfg(feature = "with-libpcap")]
+        {
+            let tcp_bytes = build_ack_packet(&ctx.source_ip, ctx.target_ip, port, ctx.source_port, fin_probe)?;
+            match pcap_send_tcp(&mut ctx, &tcp_bytes) {
+                Ok(()) => {}
+                Err(e) => { return Err(e); }
+            };
+        }
         tokio::time::sleep(Duration::from_millis(delay)).await;
     }
 
@@ -263,41 +472,8 @@ pub async fn run_tcp_ack_probe(ip_str: &str, lookup_name: bool, delay: u64, star
     Ok(())
 }
 
-#[cfg(not(feature = "with-libpcap"))]
-fn open_capture_thread_ack(
-    mut rx: TransportReceiver,
-    start: Instant,
-    timeout_seconds: u64,
-    source_port: u16,
-    target_ip: Ipv4Addr,
-    lookup_name: bool,
-) -> Result<tokio::task::JoinHandle<()>, NtkError> {
-     let listener_handle = tokio::spawn(async move {
-        let mut iter = tcp_packet_iter(&mut rx);
-        while start.elapsed() < Duration::from_secs(timeout_seconds as u64) {
-            match iter.next_with_timeout(Duration::from_secs(timeout_seconds as u64)) {
-                Ok(Some((packet, addr))) => {
-                    let flags = packet.get_flags();
-                    if addr == IpAddr::V4(target_ip) && packet.get_destination() == source_port {
-                        if flags & TcpFlags::RST == TcpFlags::RST {
-                            let discovered_port = packet.get_source();
-                            if lookup_name {
-                                let common_name: &str = port_map().get(&discovered_port).unwrap_or(&"Unknown");
-                                println!("RST: {discovered_port}: {common_name}");
-                            } else {
-                                println!("RST: {discovered_port}");
-                            }
-                        }
-                    }
-                }
-                Ok(None) => { continue; } // This is a timeout
-                Err(e) => { eprintln!("Listener error: {}", e); break; }
-            }
-        }
-    });
-    Ok(listener_handle)
-}
-
+/// Creates a thread that listens for SYN+ACK responses
+/// These indicate a port is 'open'
 #[cfg(not(feature = "with-libpcap"))]
 fn open_capture_thread(
     mut rx: TransportReceiver,
@@ -345,7 +521,46 @@ fn open_capture_thread(
     Ok(listener_handle)
 }
 
-// Construct the BPF filter which will be in-kernel evaluated
+/// Creates a thread that listens for RST responses
+#[cfg(not(feature = "with-libpcap"))]
+fn open_capture_thread_ack(
+    mut rx: TransportReceiver,
+    start: Instant,
+    timeout_seconds: u64,
+    source_port: u16,
+    target_ip: Ipv4Addr,
+    lookup_name: bool,
+) -> Result<tokio::task::JoinHandle<()>, NtkError> {
+     let listener_handle = tokio::spawn(async move {
+        let mut iter = tcp_packet_iter(&mut rx);
+        while start.elapsed() < Duration::from_secs(timeout_seconds as u64) {
+            match iter.next_with_timeout(Duration::from_secs(timeout_seconds as u64)) {
+                Ok(Some((packet, addr))) => {
+                    let flags = packet.get_flags();
+                    if addr == IpAddr::V4(target_ip) && packet.get_destination() == source_port {
+                        if flags & TcpFlags::RST == TcpFlags::RST {
+                            let discovered_port = packet.get_source();
+                            if lookup_name {
+                                let common_name: &str = port_map().get(&discovered_port).unwrap_or(&"Unknown");
+                                println!("RST: {discovered_port}: {common_name}");
+                            } else {
+                                println!("RST: {discovered_port}");
+                            }
+                        }
+                    }
+                }
+                Ok(None) => { continue; } // This is a timeout
+                Err(e) => { eprintln!("Listener error: {}", e); break; }
+            }
+        }
+    });
+    Ok(listener_handle)
+}
+
+
+/// Construct the BPF filter which will be in-kernel evaluated
+/// These filters are passed into libpcap similar to how you would
+///   filter in wireshark or tcpdump
 #[cfg(feature = "with-libpcap")]
 fn bpf_filter(src_ip: Ipv4Addr, dst_port: u16) -> String {
     format!(
@@ -366,55 +581,7 @@ struct RxHandle {
     rx_pcap: tokio::sync::mpsc::UnboundedReceiver<CapturedPacket>,
 }
 
-#[cfg(feature = "with-libpcap")]
-fn open_capture_thread_ack(
-    source_ip: Ipv4Addr,
-    source_port: u16,
-    target_ip: Ipv4Addr,
-    deadline: Instant,
-) -> Result<RxHandle, NtkError>
-{
-    let device = util::find_pcap_device(source_ip)?;
-
-    let mut cap = Capture::from_device(device)
-        .map_err(NtkError::LibPacketCaptureFailure)?
-        .timeout(200)
-        .snaplen(256)
-        .open()
-        .map_err(NtkError::LibPacketCaptureFailure)?;
-
-    let filter = bpf_filter(target_ip, source_port);
-    cap.filter(&filter, true)
-        .or_else(|e| Err(NtkError::LibPacketCaptureFailure(e)))?;
-
-    // this may need to be set if you want the loop to exit naturally
-    // the way the program currently works is the handle is dropped
-    // and then the OS is assumed to cleanup the thread as the program ends
-    // cap.setnonblock()
-
-    let (tx_pcap, rx_pcap) = tokio::sync::mpsc::unbounded_channel::<CapturedPacket>();
-
-    let handle = std::thread::spawn(move || {
-        while Instant::now() < deadline {
-            match cap.next_packet() {
-                Ok(raw) => {
-                    if let Some((sport, flags)) = util::parse_tcp_reply(raw.data) {
-                        if flags & TcpFlags::RST == TcpFlags::RST {
-                            let _ = tx_pcap.send(CapturedPacket { source_port: sport, is_syn_ack: false });
-                        }
-                    }
-                }
-                Err(pcap::Error::NoMorePackets) => continue,
-                Err(e) => { eprintln!("pcap error: {e}"); break; }
-            }
-        }
-
-        // println!("DEBUG: Exit thread loop!");
-    });
-
-    Ok(RxHandle { handle, rx_pcap })
-}
-
+/// The libpcap implementation of opening a thread to capture SYN+ACK responses
 #[cfg(feature = "with-libpcap")]
 fn open_capture_thread(
     source_ip: Ipv4Addr,
@@ -469,6 +636,58 @@ fn open_capture_thread(
     Ok(RxHandle { handle, rx_pcap })
 }
 
+/// The libpcap implementation of opening a thread to capture RST responses
+#[cfg(feature = "with-libpcap")]
+fn open_capture_thread_ack(
+    source_ip: Ipv4Addr,
+    source_port: u16,
+    target_ip: Ipv4Addr,
+    deadline: Instant,
+) -> Result<RxHandle, NtkError>
+{
+    let device = util::find_pcap_device(source_ip)?;
+
+    let mut cap = Capture::from_device(device)
+        .map_err(NtkError::LibPacketCaptureFailure)?
+        .timeout(200)
+        .snaplen(256)
+        .open()
+        .map_err(NtkError::LibPacketCaptureFailure)?;
+
+    let filter = bpf_filter(target_ip, source_port);
+    cap.filter(&filter, true)
+        .or_else(|e| Err(NtkError::LibPacketCaptureFailure(e)))?;
+
+    // this may need to be set if you want the loop to exit naturally
+    // the way the program currently works is the handle is dropped
+    // and then the OS is assumed to cleanup the thread as the program ends
+    // cap.setnonblock()
+
+    let (tx_pcap, rx_pcap) = tokio::sync::mpsc::unbounded_channel::<CapturedPacket>();
+
+    let handle = std::thread::spawn(move || {
+        while Instant::now() < deadline {
+            match cap.next_packet() {
+                Ok(raw) => {
+                    if let Some((sport, flags)) = util::parse_tcp_reply(raw.data) {
+                        if flags & TcpFlags::RST == TcpFlags::RST {
+                            let _ = tx_pcap.send(CapturedPacket { source_port: sport, is_syn_ack: false });
+                        }
+                    }
+                }
+                Err(pcap::Error::NoMorePackets) => continue,
+                Err(e) => { eprintln!("pcap error: {e}"); break; }
+            }
+        }
+
+        // println!("DEBUG: Exit thread loop!");
+    });
+
+    Ok(RxHandle { handle, rx_pcap })
+}
+
+/// Drains the TCP Packet responses from the capture thread after all sends have completed.
+/// ACK/FIN probe specific
 #[cfg(feature = "with-libpcap")]
 async fn rx_tcp_packets_ack(
     timeout_seconds: u64,
@@ -499,6 +718,8 @@ async fn rx_tcp_packets_ack(
     Ok(())
 }
 
+/// Drains the TCP Packet responses from the capture thread after all sends have completed.
+/// SYN probe specific
 #[cfg(feature = "with-libpcap")]
 async fn rx_tcp_packets(
     timeout_seconds: u64,
