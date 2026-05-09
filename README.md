@@ -124,7 +124,7 @@ Expand-Archive -Path "ntk-archive-name.zip" -DestinationPath .
 
 # Optionally, copy the binary into a common $PATH location for your Windows user:
 cp ntk.exe $env:LOCALAPPDATA\Microsoft\WindowsApps
-# Upon exiting powershell and opening a new one, the ntk/ntk.exe command should be available
+# Upon exiting powershell and opening a new one (do that now), the ntk/ntk.exe command should be available
 # IMPORTANT: ntk.exe must be executed from an administrator elevated powershell
 # Test the command executes from your $PATH:
 ntk
@@ -136,23 +136,9 @@ Network ToolKit is executed on a command line using a shell command to your oper
 
 **NOTE:** The 'Examples' subsection of each command will list which operating system the output (stdout) is from. This does not imply that particular command can only be ran on that operating system. All commands are intended for use on every support operating system (so long as the libpcap equivalent is satisfied or the host is a Unix based operating system (GNU or musl)).
 
-## Binary Setup
+First, [download the pre-built binary of your choice for your operating system](#downloading-pre-built-binaries) or [see the section on compiling from source](#compiling). Then follow [the instructions on extracting the binary](#extracting-and-installing-the-downloaded-binary). If you built from source, skip the archive extraction steps and move on to the steps adding `ntk` to your **$PATH**.
 
-First, [download the pre-built binary of your choice for your operating system](#downloading-pre-built-binaries).
-
-Place the binary in the desired location on your filesystem. For Unix/Linux, you will want to give the binary raw socket permissions to avoid using sudo. On Windows, you will want to execute the `ntk.exe` binary from an **administrator** enabled _powershell_ shell.
-
-If you already executed this step in the previous section on extracting the archive, then you do not need to perform this step again. This step must be performed **AFTER EACH TIME THE ntk BINARY MOVES** on the filesystem on Linux (e.g. if you executed it against ./ntk but then copied or moved ntk to /usr/bin/ntk you would have to execute this command against /usr/bin/ntk still).
-```bash
-# Unix/Linux Only
-# Ensure you are in the same directory as the ntk binary
-# Or provide the path to ntk
-sudo setcap cap_net_raw+ep ntk
-
-# Alpine users may need to install libcap
-```
-
-The rest of this section of the documentation on execution will reference the Network ToolKit binary as `ntk`. If you are on **Windows**, you may need to substitute usage of this command with `ntk.exe` instead. Please remember to add the path suffix if the binary is not in a _$PATH_ location (e.g. `./ntk` or `.\ntk.exe`).
+The rest of this section of the documentation on execution will reference the Network ToolKit binary as `ntk` and will assume the binary is on your **$PATH** [as described in the instructions on extracting the binary](#extracting-and-installing-the-downloaded-binary). Please remember to add the path suffix if the binary is not in a _$PATH_ location (e.g. `./ntk` or `.\ntk.exe`).
 
 ## Subcommand Inference
 
@@ -297,6 +283,48 @@ Request #2 to URL: https://dns.google/
 200
 ```
 
+Example 3 (Windows):  
+Analyzing the home router on my local subnet with no additional args:  
+`ntk a 10.0.0.1`
+```
+Running analyze against IP: '10.0.0.1'
+
+L1:
+Origin interface is '{49A63064-AB14-49AD-AB87-5D60E5866F85}' with MAC 'aa:aa:aa:aa:aa:aa' and IP '10.0.0.237' with prefix '/24'
+Windows friendly name: 'Ethernet'
+Origin Interface is 'UP'
+
+L2:
+Target IP is located in the same subnet as the origin IP. Performing ARP request...
+Target IP has MAC address: 'aa:aa:aa:aa:aa:aa'
+
+L3:
+Target IP is: '10.0.0.1/24'
+Pinging: '10.0.0.1'...
+1   10.0.0.1         1.09ms
+
+Tracing route to: '10.0.0.1' ...
+1   10.0.0.1         822.90µs
+
+L4:
+Performing TCP SYN probe of: '10.0.0.1' ...
+pcap error: timeout expired while reading from a live capture
+pcap error: timeout expired while reading from a live capture
+49152: Dynamic / Ephemeral Port
+443: HTTPS
+80: HTTP
+53: DNS
+
+L7:
+Performing DNS lookup of: '10.0.0.1'...
+Failed to perform DNS lookup: DNS lookup of IP address failed: No such host is known. (os error 11001)
+
+Performing HTTP fetch --no-content redirect test against 'https://10.0.0.1' ...
+
+Request #1 to URL: https://10.0.0.1
+Failed to peform HTTP GET request (is port 443 open?): Failed to send HTTP request using (reqwest) client: error sending request for url (https://10.0.0.1/)
+```
+
 ## Discover
 
 The `ntk discover` subcommand is used to find devices directly adjacent to one or more of the network interfaces on your computer. Discover uses an ARP scan broadcast to ask other devices on the network to reveal their MAC addresses based on the concept of 'who has x.x.x.x IP Address'. This results in both layer 2 (MAC) and layer 3 (IP) information for your subnet. Please note that some devices will mask their actual internal MAC Address in response to this scan for their own protection (and will return a different one instead).
@@ -322,7 +350,7 @@ Options:
 Some output information here obfuscated or modified for ambiguity of my devices.
 The formatting and error messages are unchanged.
 
-Example:  
+Example 1:  
 Scanning all interfaces as no `--interface` flag is provided:  
 `ntk discover`
 ```
@@ -344,6 +372,17 @@ IP               MAC
 10.0.0.102       aa:aa:aa:aa:aa:aa
 10.0.0.152       aa:aa:aa:aa:aa:aa
 [*] Discovery complete for eth1
+```
+
+Example 2 (Windows):  
+Specifying an interface via the 'friendly name' of the interface:  
+`ntk d -i Ethernet`
+```
+[*] Discovering devices on Interface: '\Device\NPF_{49A63064-AB14-49AD-AB87-5D60E5866F85}' ...
+IP               MAC
+10.0.0.1         aa:aa:aa:aa:aa:aa
+...
+[*] Discovery complete for \Device\NPF_{49A63064-AB14-49AD-AB87-5D60E5866F85}
 ```
 
 ## Fetch
@@ -774,8 +813,31 @@ If nothing happens when you attempt to execute `ntk.exe` (e.g. no output), [plea
 
 ## Compiling on Other Operating Systems
 
-Use [the instructions for compiling on Windows using cargo](#compiling-on-windows) as a template (substituting the shell required for that operating system). The Rust toolchain must be supported on the chosen operating system in order to build/compile from source. You will have to figure out the developer dependencies required to link against.
+[Please ensure Rust is installed](#compiling). Then use the standard Rust toolkit mechanism `cargo` to compile and create the release binary.  
+
+To compile socket native `ntk`:
+```bash
+# Collect the remote repository
+git clone https://github.com/t-ambur/ntk
+cd ntk
+
+# Build using the standard cargo command
+cargo build -r
+```
+
+To compile `ntk` with libpcap:
+```bash
+# Collect the remote repository
+git clone https://github.com/t-ambur/ntk
+cd ntk
+
+# !!! IMPORTANT !!!
+# Here you will have to install the Ubuntu equivalent of libpcap-dev for your Operating System
+
+# Build using the standard cargo command
+cargo build -r -F with-libpcap
+```
 
 # Known Issues
 
-Please see the **TODO.md** file for a tracker of all known bugs, issues, and planned features to `ntk`. If you encounter an issue that is not already in **TODO.md** please open an GitHub issue on this repository.
+Please see the [TODO.md](https://github.com/t-ambur/ntk/blob/main/README.md) file for a tracker of all known bugs, issues, and planned features to `ntk`. If you encounter an issue that is not already in [TODO.md](https://github.com/t-ambur/ntk/blob/main/README.md) please [open an GitHub issue](https://github.com/t-ambur/ntk/issues) in this repository.

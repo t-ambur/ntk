@@ -16,18 +16,26 @@ This is a mental notebook of possible TODOs on this project.
     - Warrants further investigation (EchoResponse from a different IP?)
 - When downloading using `ntk fetch -d` the archives from the release page the filenames are incorrect
 - DNS lookup command prints the discovered hostname twice when ran via analyze
+- ARP discovery sometimes seems less than expected on Windows over WiFi interface
+- Windows shows 'pcap error: timeout expired while reading from a live capture' during analyze scan
+    - Still seems to complete fine- this may be leaking out of the subcommand into the analyze function
 
 ## General / Misc
 - Unit tests maybe
+- Release pipeline should add tag version to the archives
+- Consider crates.io release
+- Look into adding to package managers on Ubuntu, Alpine, etc.
 
 ## Linux
-- Retest Ubuntu after Windows changes
-- Test on RHEL-based
+- Test on RHEL or CentOS or Oracle Linux
 - Test on Alpine
 
 ## Windows
-- Finish testing Windows 11 after all fixes
 - Test on Windows Server 2019/2022
+- MSI installer?
+- Discover subcommand should show friendly names of interfaces alongside GUID identifiers
+- Gateway subcommand should show friendly names of interfaces alongside GUID identifiers
+- Look into adding to a package manager such as choco
 
 ## Mac
 - Test on ARM
