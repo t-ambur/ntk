@@ -9,21 +9,28 @@ use pcap::Device;
 #[cfg(feature = "with-libpcap")]
 use crate::error::NtkError;
 
+/// Asserts a string is a valid IPv4 addresses and then converts it to the core::net type
 pub fn str_to_ip(s: &str) -> Ipv4Addr {
     assert_is_valid_ipv4(&s);
     Ipv4Addr::from_str(s).expect("Failed to convert String slice into IPv4Addr despite asserting 'is valid IPv4'.")
 }
 
+/// Returns true or false if string is a valid IPv4 addresses
 pub fn is_valid_ipv4(s: &str) -> bool {
     s.parse::<Ipv4Addr>().is_ok()
 }
 
+/// Asserts a string is a valid IPv4 addresses.
+/// Panics if the string is not valid.
 pub fn assert_is_valid_ipv4(s: &str) {
     if !is_valid_ipv4(s) {
         panic!("Provided String is not a valid IPv4 address!: {s}");
     }
 }
 
+/// Takes in a string that is supposed to represent a hostname.
+/// Performs a DNS lookup of that hostname to resolve an IPv4 Address for it.
+/// Panics if: only IPv6 addresses are returned or if unable to perform the lookup or the string is an invalid IPv4 string.
 pub async fn str_or_hostname_to_ipv4(ip_str: &str) -> Ipv4Addr {
     let ip = match is_valid_ipv4(ip_str) {
         true => { str_to_ip(ip_str) }
@@ -40,7 +47,8 @@ pub async fn str_or_hostname_to_ipv4(ip_str: &str) -> Ipv4Addr {
     ip
 }
 
-/// A MAC Address OCI is the first three octets
+/// Converts a string to the MAC Address OCI (vendor/manfacturer information)
+/// A MAC Address OCI is the first three octets.
 pub fn parse_to_mac_oci(input: &str) -> Option<Vec<u8>> {
     let parts: Vec<&str> = input.split(':').collect();
 
@@ -64,13 +72,16 @@ pub fn parse_to_mac_oci(input: &str) -> Option<Vec<u8>> {
     Some(bytes)
 }
 
+/// Asserts a string is a valid MAC Address OCI.
 /// A MAC Address OCI is at least the first three octets
 pub fn assert_valid_mac_oci(input: &str) {
     parse_to_mac_oci(input)
         .unwrap_or_else(|| panic!("Invalid MAC/OCI format!: '{}' ... You must include at least the first three octets of a MAC Address (e.g. FF:FF:FF).", input));
 }
 
-// Ask the OS what IP we should have for the route to the host
+/// Ask the OS what IP we should have for the route to the host.
+/// This is done by attempting to bind to a socket as if we were going to use it- then dropping the bind.
+/// The Drop implementation in rust will automatically drop the socket when the function goes out of scope.
 pub fn compute_source_ip(ip_str: &str) -> IpAddr {
     match std::net::UdpSocket::bind("0.0.0.0:0") {
         Ok(socket) => {
@@ -84,6 +95,8 @@ pub fn compute_source_ip(ip_str: &str) -> IpAddr {
     }
 }
 
+/// Grabs an interface object from the netdev crate (not pnet).
+/// The netdev crate is typically more cross platform friendly.
 pub fn get_interface_for_target_netdev(target: &str) -> (Ipv4Addr, netdev::Interface) {
     let source_ip = compute_source_ip(target);
     let ipv4 = match source_ip {
@@ -99,7 +112,7 @@ pub fn get_interface_for_target_netdev(target: &str) -> (Ipv4Addr, netdev::Inter
     (ipv4, interface)
 }
 
-// Parses a TCP reply from the pcap crate
+/// Parses a TCP reply from the pcap crate
 #[cfg(feature = "with-libpcap")]
 pub fn parse_tcp_reply(data: &[u8]) -> Option<(u16, u8)> {
     let eth = EthernetPacket::new(data)?;
@@ -118,7 +131,7 @@ pub fn parse_tcp_reply(data: &[u8]) -> Option<(u16, u8)> {
     Some((tcp.get_source(), tcp.get_flags()))
 }
 
-// Gets the 'device' (interface) from which to capture packet responses on
+/// Gets the 'device' (interface) from which to capture packet responses on
 #[cfg(feature = "with-libpcap")]
 pub fn find_pcap_device(source_ip: Ipv4Addr) -> Result<Device, NtkError> {
     let devices = Device::list()

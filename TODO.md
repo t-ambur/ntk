@@ -12,11 +12,10 @@ This is a mental notebook of possible TODOs on this project.
 - Ping -> wait for response -> ping again (similar to expected behavior)
 
 ## Bugfixes
-- **Packet scans don't work on Windows**
-    - (needs rewrite to use libpcap for sending?, no native socket access?)
 - Traceroute/Ping to cloudflare DNS 1.1.1.1 times out on final hop
     - Warrants further investigation (EchoResponse from a different IP?)
 - When downloading using `ntk fetch -d` the archives from the release page the filenames are incorrect
+- DNS lookup command prints the discovered hostname twice when ran via analyze
 
 ## General / Misc
 - Unit tests maybe

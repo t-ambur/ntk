@@ -1,12 +1,10 @@
-use std::time::{Duration, Instant};
-
-#[cfg(any(unix, feature = "with-libpcap"))]
-use pnet::datalink::{self, Channel::Ethernet};
+use std::time::{Duration};
 
 use crate::util;
 use crate::commands;
 use crate::error::NtkError;
 
+/// Runs through most of the other subcommands in one big function to determine if a remote target is reachable from here
 pub async fn run(input_str: &str, web_lookup_mac: bool, ignore_certs: bool, http: bool) -> Result<(), NtkError> {
     #[cfg(all(not(unix), not(feature = "with-libpcap")))]
     println!("WARNING: This command is being ran without libpcap on a non-unix operating system. Very limited output will be available. Please install the libpcap binary and dependencies.");
@@ -70,43 +68,19 @@ pub async fn run(input_str: &str, web_lookup_mac: bool, ignore_certs: bool, http
             .find(|i| i.name.contains(&interface.name))
             .expect("Could not find matching pnet interface by substring");
 
-            match pnet_interface.mac {
-                Some(mac) => {
-                    let (mut tx, mut rx) = match datalink::channel(&pnet_interface, Default::default()) {
-                        Ok(Ethernet(tx, rx)) => (tx, rx),
-                        Ok(_) => return Err(NtkError::DatalinkUnsupportedChannel),
-                        Err(e) => return Err(NtkError::DatalinkOpenFailure(e)),
-                    };
-                    match commands::discover::send_arp_request(&mut tx, mac, source_ip, target_ip) {
-                        Ok(_) => {
-                            let start = Instant::now();
-                            let mut discovered_mac = None;
-                            while start.elapsed() < Duration::from_secs(10) {
-                                if let Ok(packet) = rx.next() {
-                                    if let Some((ip, mac)) = commands::discover::parse_arp_reply(packet) {
-                                        if ip == target_ip {
-                                            discovered_mac = Some(mac);
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                            match discovered_mac {
-                                Some(mac) => { 
-                                    println!("Target IP has MAC address: '{}'", mac);
-                                    if web_lookup_mac {
-                                        print!("Vendor lookup result (HTTP): ");
-                                        let _ = commands::fetch::run_get_mac_vendor(&mac.to_string(), ignore_certs).await;
-                                    }
-                                },
-                                None => { println!("Failed to discover the MAC address of the target IP: '{}'!", &ip_str) }
-                            }
-                        }
-                        Err(e) => { eprintln!("Failed to send ARP request: {e}"); }
+            match commands::discover::resolve_mac_for_ip(&pnet_interface, source_ip, target_ip, Duration::from_secs(10)) {
+                Ok(mac) => {
+                    println!("Target IP has MAC address: '{}'", mac);
+                    if web_lookup_mac {
+                        print!("Vendor lookup result (HTTP): ");
+                        let _ = commands::fetch::run_get_mac_vendor(&mac.to_string(), ignore_certs).await;
                     }
                 }
-                None => {
-                    println!("Failed to ARP scan the target IP because local discovery of the origin MAC Address failed (it is 'Unknown' to ntk)");
+                Err(NtkError::ArpResolutionTimeout(_)) => {
+                    eprintln!("Failed to discover the MAC addresses of the target IP: '{}'!", &ip_str);
+                }
+                Err(e) => {
+                    eprintln!("ARP request failed: {e}");
                 }
             }
         } else {

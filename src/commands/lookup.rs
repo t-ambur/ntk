@@ -3,6 +3,7 @@ extern crate dns_lookup;
 use std::net::{IpAddr, Ipv4Addr};
 use crate::error::NtkError;
 
+/// Uses the dns_lookup crate to discover a hostname from a provided IP Address
 pub async fn run_lookup_addr(ip: Ipv4Addr) -> Result<String, NtkError> {
     match dns_lookup::lookup_addr(&ip.into()) {
         Ok(addr) => { println!("{addr}"); Ok(addr) }
@@ -10,6 +11,7 @@ pub async fn run_lookup_addr(ip: Ipv4Addr) -> Result<String, NtkError> {
     }
 }
 
+/// Uses the dns_lookup crate to return one or more IP Addresses from a provided hostname.
 pub async fn hostname_to_ips(host: &str) -> Result<Vec<IpAddr>, NtkError> {
     match dns_lookup::lookup_host(host) {
         Ok(ips) => {
@@ -19,6 +21,8 @@ pub async fn hostname_to_ips(host: &str) -> Result<Vec<IpAddr>, NtkError> {
     }
 }
 
+/// Prints out each of the IP Addresses assigned to a hostname.
+/// Invokes 'hostname_to_ips' to use the dns_lookup crate on the hostname
 pub async fn run_lookup_host(host: &str) -> Result<Vec<IpAddr>, NtkError> {
     let ips = hostname_to_ips(host).await?;
     for ip in &ips {

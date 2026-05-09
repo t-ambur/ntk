@@ -13,6 +13,7 @@ use crate::util;
 const MAC_LOOKUP_URL_1: &'static str = "https://api.macvendors.com/";
 const MAC_LOOKUP_URL_2: &'static str = "https://api.maclookup.app/v2/macs/";
 
+/// Either dumps the GET response to a file is download_path was specified or to stdout.
 async fn print_content(content: &str, download_path: Option<String>) -> Result<(), NtkError> {
     match download_path {
         Some(p) => {
@@ -29,6 +30,8 @@ async fn print_content(content: &str, download_path: Option<String>) -> Result<(
     Ok(())
 }
 
+/// Automatically attempts to parse the fetch response based on the content_type header in the response.
+/// For example: JSON response is parsed into a string before dumping to stdout or a file
 async fn handle_content_type(resp: Response, download_path: Option<String>) -> Result<(), NtkError> {
     match resp.headers().get("Content-Type") {
         Some(v) => {
@@ -67,6 +70,7 @@ async fn handle_content_type(resp: Response, download_path: Option<String>) -> R
     Ok(())
 }
 
+/// Runs a HTTP GET request against the specified URL or IP address
 pub async fn run_fetch(url_or_ip: &str, ignore_certs: bool, show_headers: bool, no_content: bool, download_path: Option<String>, max_hops: u8, http: bool) -> Result<(), NtkError> {
     let client = Client::builder()
         .redirect(Policy::none()) // Handle redirects manually
@@ -120,6 +124,7 @@ pub async fn run_fetch(url_or_ip: &str, ignore_certs: bool, show_headers: bool, 
     Ok(())
 }
 
+/// Collects a GET to try to discover a MAC Address OUI from two remote databases
 pub async fn run_get_mac_vendor(mac: &str, ignore_certs: bool) -> Result<(), NtkError> {
     util::assert_valid_mac_oci(&mac);
 
@@ -162,6 +167,8 @@ pub async fn run_get_mac_vendor(mac: &str, ignore_certs: bool) -> Result<(), Ntk
     Ok(())
 }
 
+/// Executes a GET that downloads the remote resource to a file instead of stdout.
+/// Shows a neat progress indicator that uses carriage return to update inline
 pub async fn run_download(url_or_ip: &str, ignore_certs: bool, show_headers: bool, download_path: Option<String>, http: bool) -> Result<(), NtkError> {
     let client = Client::builder()
         .tls_danger_accept_invalid_certs(ignore_certs)

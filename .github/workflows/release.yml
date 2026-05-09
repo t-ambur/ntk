@@ -160,6 +160,10 @@ jobs:
             -DestinationPath dist\${{ env.BINARY_NAME }}-windows-native.zip
           Remove-Item target\x86_64-pc-windows-msvc\release\${{ env.BINARY_NAME }}.exe
 
+      - name: Allow PowerShell scripts
+        shell: powershell
+        run: Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+
       - name: Fetch Npcap SDK
         shell: pwsh
         run: .\Get-NpcapSDK.ps1

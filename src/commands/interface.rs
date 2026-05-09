@@ -3,6 +3,8 @@ use netdev::{get_interfaces, Interface};
 
 use crate::error::NtkError;
 
+/// Shows all interfaces on this device.
+/// Can optionally show only the ones that are in the DOWN or UP states.
 pub async fn run(down_only: bool, up_only: bool) -> Result<Vec<Interface>, NtkError> {
     let mut interfaces = get_interfaces();
     interfaces.sort_by(|a, b| a.name.cmp(&b.name));
