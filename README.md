@@ -840,4 +840,4 @@ cargo build -r -F with-libpcap
 
 # Known Issues
 
-Please see the [TODO.md](https://github.com/t-ambur/ntk/blob/main/README.md) file for a tracker of all known bugs, issues, and planned features to `ntk`. If you encounter an issue that is not already in [TODO.md](https://github.com/t-ambur/ntk/blob/main/README.md) please [open an GitHub issue](https://github.com/t-ambur/ntk/issues) in this repository.
+Please see the [TODO.md](https://github.com/t-ambur/ntk/blob/main/TODO.md) file for a tracker of all known bugs, issues, and planned features to `ntk`. If you encounter an issue that is not already in [TODO.md](https://github.com/t-ambur/ntk/blob/main/TODO.md) please [open an GitHub issue](https://github.com/t-ambur/ntk/issues) in this repository.
