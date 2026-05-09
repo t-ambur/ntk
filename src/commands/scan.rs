@@ -300,7 +300,7 @@ async fn handle_transport_setup(ip_str: &str,  user_source_port: Option<u16>)
 async fn handle_transport_setup_pcap(
     ip_str: &str,
     user_source_port: Option<u16>,
-) -> Result<(PcapSendContext, Instant), NtkError> {
+) -> Result<PcapSendContext, NtkError> {
     let target_ip = util::str_or_hostname_to_ipv4(ip_str).await;
     let source_port = user_source_port
         .unwrap_or_else(|| rand::random_range(32768..61000));
@@ -350,8 +350,9 @@ async fn handle_transport_setup_pcap(
 
     let send_cap = Capture::from_device(util::find_pcap_device(source_ip)?)
         .map_err(NtkError::LibPacketCaptureFailure)?
-        .timeout(200)
-        .snaplen(256)
+        .timeout(0)
+        .snaplen(0)
+        .promisc(false)
         .open()
         .map_err(NtkError::LibPacketCaptureFailure)?;
 
@@ -364,7 +365,7 @@ async fn handle_transport_setup_pcap(
         source_port,
     };
 
-    Ok((ctx, Instant::now()))
+    Ok(ctx)
 }
 
 /// Creates channels applicable to the with-libpcap feature or without (i.e. native socket)
@@ -372,7 +373,7 @@ async fn handle_transport_setup_pcap(
 /// By default will scan an internal array of the 1000 most commonly used ports for 'open' status.
 pub async fn run_tcp_syn_probe(ip_str: &str, lookup_name: bool, delay: u64, start_range: Option<u16>, end_range: Option<u16>, timeout_seconds: u8, show_reset: bool, user_source_port: Option<u16>) -> Result<(), NtkError> {
     #[cfg(feature = "with-libpcap")]
-    let (mut ctx, start)
+    let mut ctx
         = handle_transport_setup_pcap(ip_str, user_source_port).await?;
     
     #[cfg(not(feature = "with-libpcap"))]
@@ -380,16 +381,23 @@ pub async fn run_tcp_syn_probe(ip_str: &str, lookup_name: bool, delay: u64, star
         = handle_transport_setup(ip_str, user_source_port).await?;
 
     let timeout_seconds = timeout_seconds as u64;
+    // Calculate the total time to wait
+    // We need to figure in the delay in-between each send
+    // Otherwise we won't wait long enough for all packets
+    // to return to us
+    let port_count = PortIter::new(start_range, end_range).count() as u64;
+    let send_duration = Duration::from_millis(port_count * delay);
+    let capture_duration = send_duration + Duration::from_secs(timeout_seconds);
     
     #[cfg(feature = "with-libpcap")]
-    let deadline = start + Duration::from_secs(timeout_seconds);
-    #[cfg(feature = "with-libpcap")]
-    let handle = open_capture_thread(ctx.source_ip, ctx.source_port, ctx.target_ip, deadline, show_reset)?;
+    let handle = open_capture_thread(ctx.source_ip, ctx.source_port, ctx.target_ip, show_reset, capture_duration)?;
 
     #[cfg(not(feature = "with-libpcap"))]
     let _handle = open_capture_thread(rx, start, timeout_seconds, source_port, target_ip, lookup_name, show_reset)?;
 
-    // println!("DEBUG: Sending from: {} on port {} to {}", source_ip, source_port, target_ip);
+    #[cfg(feature = "with-libpcap")]
+    let drain = tokio::spawn(rx_tcp_packets(capture_duration, handle, lookup_name));
+
     for port in PortIter::new(start_range, end_range) {
         // println!("Sending: {}", port);
         #[cfg(not(feature = "with-libpcap"))]
@@ -411,7 +419,7 @@ pub async fn run_tcp_syn_probe(ip_str: &str, lookup_name: bool, delay: u64, star
     }
 
     #[cfg(feature = "with-libpcap")]
-    rx_tcp_packets(timeout_seconds, handle, lookup_name).await?;
+    drain.await.map_err(|_| NtkError::TaskJoinError)??;
 
     #[cfg(not(feature = "with-libpcap"))]
     tokio::time::sleep(Duration::from_secs(timeout_seconds as u64)).await;
@@ -425,7 +433,7 @@ pub async fn run_tcp_syn_probe(ip_str: &str, lookup_name: bool, delay: u64, star
 /// By default will scan an internal array of the 1000 most commonly used ports for 'open' status.
 pub async fn run_tcp_ack_probe(ip_str: &str, lookup_name: bool, delay: u64, start_range: Option<u16>, end_range: Option<u16>, timeout_seconds: u8, user_source_port: Option<u16>, fin_probe: bool) -> Result<(), NtkError> {
     #[cfg(feature = "with-libpcap")]
-    let (mut ctx, start)
+    let mut ctx 
         = handle_transport_setup_pcap(ip_str, user_source_port).await?;
     
     #[cfg(not(feature = "with-libpcap"))]
@@ -433,16 +441,23 @@ pub async fn run_tcp_ack_probe(ip_str: &str, lookup_name: bool, delay: u64, star
         = handle_transport_setup(ip_str, user_source_port).await?;
 
     let timeout_seconds = timeout_seconds as u64;
+    // Calculate the total time to wait
+    // We need to figure in the delay in-between each send
+    // Otherwise we won't wait long enough for all packets
+    // to return to us
+    let port_count = PortIter::new(start_range, end_range).count() as u64;
+    let send_duration = Duration::from_millis(port_count * delay);
+    let capture_duration = send_duration + Duration::from_secs(timeout_seconds);
     
     #[cfg(feature = "with-libpcap")]
-    let deadline = start + Duration::from_secs(timeout_seconds);
-    #[cfg(feature = "with-libpcap")]
-    let handle = open_capture_thread_ack(ctx.source_ip, ctx.source_port, ctx.target_ip, deadline)?;
+    let handle = open_capture_thread_ack(ctx.source_ip, ctx.source_port, ctx.target_ip, capture_duration)?;
 
     #[cfg(not(feature = "with-libpcap"))]
     let _handle = open_capture_thread_ack(rx, start, timeout_seconds, source_port, target_ip, lookup_name)?;
 
-    // println!("DEBUG: Sending from: {} on port {} to {}", source_ip, source_port, target_ip);
+    #[cfg(feature = "with-libpcap")]
+    let drain = tokio::spawn(rx_tcp_packets_ack(capture_duration, handle, lookup_name));
+
     for port in PortIter::new(start_range, end_range) {
         // println!("Sending: {}", port);
         #[cfg(not(feature = "with-libpcap"))]
@@ -464,7 +479,7 @@ pub async fn run_tcp_ack_probe(ip_str: &str, lookup_name: bool, delay: u64, star
     }
 
     #[cfg(feature = "with-libpcap")]
-    rx_tcp_packets_ack(timeout_seconds, handle, lookup_name).await?;
+    drain.await.map_err(|_| NtkError::TaskJoinError)??;
 
     #[cfg(not(feature = "with-libpcap"))]
     tokio::time::sleep(Duration::from_secs(timeout_seconds as u64)).await;   
@@ -558,14 +573,24 @@ fn open_capture_thread_ack(
 }
 
 
-/// Construct the BPF filter which will be in-kernel evaluated
+/// Construct the BPF filter which will be in-kernel/driver evaluated.
 /// These filters are passed into libpcap similar to how you would
-///   filter in wireshark or tcpdump
+///   filter in wireshark or tcpdump.
+///
+/// `target_ip`   — only capture packets coming from the host we are scanning
+/// `source_port` — the ephemeral port we sent probes *from*; responses arrive
+///                 *to* this port, so it maps to `dst port` in the filter
+///
+/// The flag constraint restricts capture to SYN+ACK and RST only, which covers
+/// all three scan types (SYN, ACK, FIN). This also prevents Npcap on Windows
+/// from delivering duplicate entries caused by the Windows TCP/IP stack firing
+/// its own RST in response to an unsolicited SYN+ACK.
 #[cfg(feature = "with-libpcap")]
-fn bpf_filter(src_ip: Ipv4Addr, dst_port: u16) -> String {
+fn bpf_filter(target_ip: Ipv4Addr, source_port: u16) -> String {
     format!(
-        "tcp and src host {} and dst port {}",
-        src_ip, dst_port
+        "tcp and src host {target_ip} and dst port {source_port} \
+         and (tcp[tcpflags] & (tcp-syn|tcp-ack) == (tcp-syn|tcp-ack) \
+         or tcp[tcpflags] & tcp-rst != 0)"
     )
 }
 
@@ -587,8 +612,8 @@ fn open_capture_thread(
     source_ip: Ipv4Addr,
     source_port: u16,
     target_ip: Ipv4Addr,
-    deadline: Instant,
     show_reset: bool,
+    capture_duration: Duration,
 ) -> Result<RxHandle, NtkError>
 {
     let device = util::find_pcap_device(source_ip)?;
@@ -596,7 +621,7 @@ fn open_capture_thread(
     let mut cap = Capture::from_device(device)
         .map_err(NtkError::LibPacketCaptureFailure)?
         .timeout(200)
-        .snaplen(256)
+        .snaplen(512)
         .open()
         .map_err(NtkError::LibPacketCaptureFailure)?;
 
@@ -609,29 +634,46 @@ fn open_capture_thread(
     // and then the OS is assumed to cleanup the thread as the program ends
     // cap.setnonblock()
 
+    // A channel just to signal the rx thread is ready
+    let (ready_tx, ready_rx) = std::sync::mpsc::channel::<()>();
+    // The actual communications channels
     let (tx_pcap, rx_pcap) = tokio::sync::mpsc::unbounded_channel::<CapturedPacket>();
 
     let handle = std::thread::spawn(move || {
+        let mut seen = std::collections::HashSet::new();
+        // Prime the capture loop to ensure Npcap has fully activated the
+        // BPF filter in the NDIS driver before signaling readiness.
+        // Any packet arriving here predates our sends so it can be discarded.
+        let _ = cap.next_packet();
+        ready_tx.send(()).ok();
+
+        let deadline = Instant::now() + capture_duration;
+
         while Instant::now() < deadline {
             match cap.next_packet() {
                 Ok(raw) => {
                     if let Some((sport, flags)) = util::parse_tcp_reply(raw.data) {
                         let is_syn_ack = flags & (TcpFlags::SYN | TcpFlags::ACK) == (TcpFlags::SYN | TcpFlags::ACK);
                         let is_rst = flags & TcpFlags::RST == TcpFlags::RST;
-                        if is_syn_ack {
+                        if is_syn_ack && !seen.contains(&sport) {
+                            seen.insert(sport);
                             let _ = tx_pcap.send(CapturedPacket { source_port: sport, is_syn_ack: true });
-                        } else if is_rst && show_reset {
+                        } else if is_rst && show_reset && !seen.contains(&sport) {
+                            seen.insert(sport);
                             let _ = tx_pcap.send(CapturedPacket { source_port: sport, is_syn_ack: false });
                         }
                     }
                 }
                 Err(pcap::Error::NoMorePackets) => continue,
+                Err(pcap::Error::TimeoutExpired) => continue,
                 Err(e) => { eprintln!("pcap error: {e}"); break; }
             }
         }
-
         // println!("DEBUG: Exit thread loop!");
     });
+
+    // wait for the thread to be ready to rx packets
+    ready_rx.recv().ok();
 
     Ok(RxHandle { handle, rx_pcap })
 }
@@ -642,7 +684,7 @@ fn open_capture_thread_ack(
     source_ip: Ipv4Addr,
     source_port: u16,
     target_ip: Ipv4Addr,
-    deadline: Instant,
+    capture_duration: Duration,
 ) -> Result<RxHandle, NtkError>
 {
     let device = util::find_pcap_device(source_ip)?;
@@ -650,7 +692,7 @@ fn open_capture_thread_ack(
     let mut cap = Capture::from_device(device)
         .map_err(NtkError::LibPacketCaptureFailure)?
         .timeout(200)
-        .snaplen(256)
+        .snaplen(512)
         .open()
         .map_err(NtkError::LibPacketCaptureFailure)?;
 
@@ -663,25 +705,39 @@ fn open_capture_thread_ack(
     // and then the OS is assumed to cleanup the thread as the program ends
     // cap.setnonblock()
 
+    // A channel just to signal the rx thread is ready
+    let (ready_tx, ready_rx) = std::sync::mpsc::channel::<()>();
     let (tx_pcap, rx_pcap) = tokio::sync::mpsc::unbounded_channel::<CapturedPacket>();
 
     let handle = std::thread::spawn(move || {
+        let mut seen = std::collections::HashSet::new();
+        // Prime the capture loop to ensure Npcap has fully activated the
+        // BPF filter in the NDIS driver before signaling readiness.
+        // Any packet arriving here predates our sends so it can be discarded.
+        let _ = cap.next_packet();
+        ready_tx.send(()).ok();
+        let deadline = Instant::now() + capture_duration;
         while Instant::now() < deadline {
             match cap.next_packet() {
                 Ok(raw) => {
                     if let Some((sport, flags)) = util::parse_tcp_reply(raw.data) {
-                        if flags & TcpFlags::RST == TcpFlags::RST {
+                        if flags & TcpFlags::RST == TcpFlags::RST && !seen.contains(&sport) {
+                            seen.insert(sport);
                             let _ = tx_pcap.send(CapturedPacket { source_port: sport, is_syn_ack: false });
                         }
                     }
                 }
                 Err(pcap::Error::NoMorePackets) => continue,
+                Err(pcap::Error::TimeoutExpired) => continue,
                 Err(e) => { eprintln!("pcap error: {e}"); break; }
             }
         }
 
         // println!("DEBUG: Exit thread loop!");
     });
+
+    // wait for the thread to be ready to rx packets
+    ready_rx.recv().ok();
 
     Ok(RxHandle { handle, rx_pcap })
 }
@@ -690,13 +746,13 @@ fn open_capture_thread_ack(
 /// ACK/FIN probe specific
 #[cfg(feature = "with-libpcap")]
 async fn rx_tcp_packets_ack(
-    timeout_seconds: u64,
+    capture_duration: Duration,
     thread_handle: RxHandle,
     lookup_name: bool,
 ) -> Result<(), NtkError> {
     let RxHandle { handle, mut rx_pcap } = thread_handle;
 
-    let timeout_at = tokio::time::Instant::now() + Duration::from_secs(timeout_seconds);
+    let timeout_at = tokio::time::Instant::now() + capture_duration;
 
     loop {
         match tokio::time::timeout_at(timeout_at, rx_pcap.recv()).await {
@@ -722,13 +778,13 @@ async fn rx_tcp_packets_ack(
 /// SYN probe specific
 #[cfg(feature = "with-libpcap")]
 async fn rx_tcp_packets(
-    timeout_seconds: u64,
+    capture_duration: Duration,
     thread_handle: RxHandle,
     lookup_name: bool,
 ) -> Result<(), NtkError> {
     let RxHandle { handle, mut rx_pcap } = thread_handle;
 
-    let timeout_at = tokio::time::Instant::now() + Duration::from_secs(timeout_seconds);
+    let timeout_at = tokio::time::Instant::now() + capture_duration;
 
     loop {
         match tokio::time::timeout_at(timeout_at, rx_pcap.recv()).await {

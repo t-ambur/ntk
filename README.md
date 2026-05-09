@@ -661,7 +661,27 @@ Options:
 
 ### Examples
 
-TODO
+Example 1:  
+Scan the router in my local subnet:  
+`ntk scan 10.0.0.1`
+```
+open: 80
+open: 53
+open: 443
+open: 49152
+```
+
+Example 2:
+Perform an ACK probe instead of a SYN probe:
+`ntk scan 10.0.0.1 -a`
+```
+RST: 8007
+RST: 5061
+RST: 3527
+RST: 1277
+RST: 2000
+... and ~990 more responses from the router
+```
 
 # Compiling
 
@@ -722,6 +742,11 @@ To compile with-libpcap (**recommended**):
 # Collect the remote repository
 git clone https://github.com/t-ambur/ntk
 cd ntk
+
+# Allow powershell scripts to run from non-local sources
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+# Run the powershell script to download npcap SDK
+.\Get-NpcapSDK.ps1
 
 # Build using the standard cargo command
 # The build.rs file will automatically link the bundled Npcap libs

@@ -34,12 +34,14 @@ pub enum NtkError {
     ArpResolutionTimeout(String),
     #[cfg(not(feature = "with-libpcap"))]
     IcmpReceive(std::io::Error),
-    #[cfg(not(unix))]
+    #[cfg(all(not(unix), not(feature = "with-libpcap")))]
     WrongBinaryInUse(String),
     #[cfg(feature = "with-libpcap")]
     IpIfAssociationError(String),
     #[cfg(feature = "with-libpcap")]
     LibPacketCaptureFailure(pcap::Error),
+    #[cfg(feature = "with-libpcap")]
+    TaskJoinError,
     #[cfg(any(feature = "with-libpcap", not(unix)))]
     UnexpectedHandle,
 }
@@ -77,12 +79,14 @@ impl fmt::Display for NtkError {
             NtkError::ArpResolutionTimeout(s) => write!(f, "Timeout waiting for an ARP reply from a remote IP: {s}"),
             #[cfg(not(feature = "with-libpcap"))]
             NtkError::IcmpReceive(e) => write!(f, "Failed to receive ICMP ping packet: {e}"),
-            #[cfg(not(unix))]
+            #[cfg(all(not(unix), not(feature = "with-libpcap")))]
             NtkError::WrongBinaryInUse(s) => write!(f, "{s}"),
             #[cfg(feature = "with-libpcap")]
             NtkError::IpIfAssociationError(s) => write!(f, "No interface exists with the assigned source IPI: {s}"),
             #[cfg(feature = "with-libpcap")]
             NtkError::LibPacketCaptureFailure(e) => write!(f, "Failure to receive or setting up to receive packets: {e}"),
+            #[cfg(feature = "with-libpcap")]
+            NtkError::TaskJoinError => write!(f, "Failed to gracefully join (shutdown) async thread."),
             #[cfg(any(feature = "with-libpcap", not(unix)))]
             NtkError::UnexpectedHandle => write!(f, "A function expected a thread handle or an async tokio handle but rx the wrong one."),
         }
