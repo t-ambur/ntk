@@ -148,6 +148,10 @@ jobs:
           key: windows-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: windows-cargo-
 
+      - name: Fetch Npcap SDK
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File .\Get-NpcapSDK.ps1
+
       - name: Build (no features)
         run: cargo build --release --no-default-features --target x86_64-pc-windows-msvc
 
@@ -159,14 +163,6 @@ jobs:
             -Path   target\x86_64-pc-windows-msvc\release\${{ env.BINARY_NAME }}.exe `
             -DestinationPath dist\${{ env.BINARY_NAME }}-windows-native.zip
           Remove-Item target\x86_64-pc-windows-msvc\release\${{ env.BINARY_NAME }}.exe
-
-      - name: Allow PowerShell scripts
-        shell: powershell
-        run: Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-
-      - name: Fetch Npcap SDK
-        shell: pwsh
-        run: .\Get-NpcapSDK.ps1
 
       - name: Build (with-libpcap)
         run: cargo build --release --no-default-features --features with-libpcap --target x86_64-pc-windows-msvc

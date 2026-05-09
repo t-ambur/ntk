@@ -92,3 +92,4 @@ Remove-Item $zipPath    -Force -ErrorAction SilentlyContinue
 Remove-Item $extractDir -Recurse -Force -ErrorAction SilentlyContinue
 
 Write-Host "Npcap SDK v$Version installed to '$Destination'."
+exit 0
