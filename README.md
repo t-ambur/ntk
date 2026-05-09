@@ -671,8 +671,18 @@ open: 443
 open: 49152
 ```
 
-Example 2:
-Perform an ACK probe instead of a SYN probe:
+Example 2:  
+The same SYN scan but with port name lookup enabled:  
+`ntk s 10.0.0.1 -l`
+```
+443: HTTPS
+49152: Dynamic / Ephemeral Port
+53: DNS
+80: HTTP
+```
+
+Example 3:  
+Perform an ACK probe instead of a SYN probe:  
 `ntk scan 10.0.0.1 -a`
 ```
 RST: 8007
