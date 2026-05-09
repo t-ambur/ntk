@@ -80,9 +80,10 @@ foreach ($subdir in @("Include", "Lib")) {
         continue
     }
     Write-Host "Copying $subdir -> '$dst' ..."
-    robocopy $src $dst /E /XO /NJH /NJS /NFL /NDL
-    if ($LASTEXITCODE -gt 7) {
-        Write-Error "robocopy exited with code $LASTEXITCODE"
+    robocopy $src $dst /E /XO /NJH /NJS /NFL /NDL | Out-Null
+    $robocopyExit = $LASTEXITCODE
+    if ($robocopyExit -gt 7) {
+        Write-Error "robocopy exited with code $robocopyExit"
     }
 }
 
