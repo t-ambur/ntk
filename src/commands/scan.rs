@@ -393,7 +393,7 @@ pub async fn run_tcp_syn_probe(ip_str: &str, lookup_name: bool, delay: u64, star
     let handle = open_capture_thread(ctx.source_ip, ctx.source_port, ctx.target_ip, show_reset, capture_duration)?;
 
     #[cfg(not(feature = "with-libpcap"))]
-    let _handle = open_capture_thread(rx, start, timeout_seconds, source_port, target_ip, lookup_name, show_reset)?;
+    let _handle = open_capture_thread(rx, start, capture_duration, source_port, target_ip, lookup_name, show_reset)?;
 
     #[cfg(feature = "with-libpcap")]
     let drain = tokio::spawn(rx_tcp_packets(capture_duration, handle, lookup_name));
@@ -453,7 +453,7 @@ pub async fn run_tcp_ack_probe(ip_str: &str, lookup_name: bool, delay: u64, star
     let handle = open_capture_thread_ack(ctx.source_ip, ctx.source_port, ctx.target_ip, capture_duration)?;
 
     #[cfg(not(feature = "with-libpcap"))]
-    let _handle = open_capture_thread_ack(rx, start, timeout_seconds, source_port, target_ip, lookup_name)?;
+    let _handle = open_capture_thread_ack(rx, start, capture_duration, source_port, target_ip, lookup_name)?;
 
     #[cfg(feature = "with-libpcap")]
     let drain = tokio::spawn(rx_tcp_packets_ack(capture_duration, handle, lookup_name));
