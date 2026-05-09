@@ -493,7 +493,7 @@ pub async fn run_tcp_ack_probe(ip_str: &str, lookup_name: bool, delay: u64, star
 fn open_capture_thread(
     mut rx: TransportReceiver,
     start: Instant,
-    timeout_seconds: u64,
+    capture_duration: Duration,
     source_port: u16,
     target_ip: Ipv4Addr,
     lookup_name: bool,
@@ -501,8 +501,8 @@ fn open_capture_thread(
 ) -> Result<tokio::task::JoinHandle<()>, NtkError> {
     let listener_handle = tokio::spawn(async move {
         let mut iter = tcp_packet_iter(&mut rx);
-        while start.elapsed() < Duration::from_secs(timeout_seconds) {
-            let remaining = Duration::from_secs(timeout_seconds).saturating_sub(start.elapsed());
+        while start.elapsed() < capture_duration {
+            let remaining = capture_duration.saturating_sub(start.elapsed());
             match iter.next_with_timeout(remaining) {
                 Ok(Some((packet, addr))) => {
                     let flags = packet.get_flags();
@@ -541,15 +541,16 @@ fn open_capture_thread(
 fn open_capture_thread_ack(
     mut rx: TransportReceiver,
     start: Instant,
-    timeout_seconds: u64,
+    capture_duration: Duration,
     source_port: u16,
     target_ip: Ipv4Addr,
     lookup_name: bool,
 ) -> Result<tokio::task::JoinHandle<()>, NtkError> {
      let listener_handle = tokio::spawn(async move {
         let mut iter = tcp_packet_iter(&mut rx);
-        while start.elapsed() < Duration::from_secs(timeout_seconds as u64) {
-            match iter.next_with_timeout(Duration::from_secs(timeout_seconds as u64)) {
+        while start.elapsed() < capture_duration {
+            let remaining = capture_duration.saturating_sub(start.elapsed());
+            match iter.next_with_timeout(remaining) {
                 Ok(Some((packet, addr))) => {
                     let flags = packet.get_flags();
                     if addr == IpAddr::V4(target_ip) && packet.get_destination() == source_port {
@@ -641,12 +642,14 @@ fn open_capture_thread(
 
     let handle = std::thread::spawn(move || {
         let mut seen = std::collections::HashSet::new();
-        // Prime the capture loop to ensure Npcap has fully activated the
-        // BPF filter in the NDIS driver before signaling readiness.
-        // Any packet arriving here predates our sends so it can be discarded.
+        // On Windows/Npcap the BPF filter activation in the NDIS driver is
+        // asynchronous. Block on one next_packet() call to ensure the filter
+        // is live before signaling ready. On Unix this is unnecessary and
+        // next_packet() may block indefinitely, so we skip it.
+        #[cfg(target_os = "windows")]
         let _ = cap.next_packet();
-        ready_tx.send(()).ok();
 
+        ready_tx.send(()).ok();
         let deadline = Instant::now() + capture_duration;
 
         while Instant::now() < deadline {
@@ -711,10 +714,13 @@ fn open_capture_thread_ack(
 
     let handle = std::thread::spawn(move || {
         let mut seen = std::collections::HashSet::new();
-        // Prime the capture loop to ensure Npcap has fully activated the
-        // BPF filter in the NDIS driver before signaling readiness.
-        // Any packet arriving here predates our sends so it can be discarded.
+        // On Windows/Npcap the BPF filter activation in the NDIS driver is
+        // asynchronous. Block on one next_packet() call to ensure the filter
+        // is live before signaling ready. On Unix this is unnecessary and
+        // next_packet() may block indefinitely, so we skip it.
+        #[cfg(target_os = "windows")]
         let _ = cap.next_packet();
+
         ready_tx.send(()).ok();
         let deadline = Instant::now() + capture_duration;
         while Instant::now() < deadline {
