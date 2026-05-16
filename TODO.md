@@ -33,8 +33,6 @@ This is a mental notebook of possible TODOs on this project.
 
 ## Linux
 - Retest on RHEL or CentOS or Oracle Linux
-- Problem with glibc version being compiled too new for older OS such as OL9
-    - musl works on GNU linux -> next release get rid of 'GNU native' for only 'musl native'
 - Test on Alpine
 
 ## Windows
@@ -48,7 +46,3 @@ This is a mental notebook of possible TODOs on this project.
     - Ping and Scan subcommands have socket issues even with sudo
     - Gateway looks strange for default route
 - Test on Intel
-- README.md needs update
-    - Extract to /usr/local/bin instead of /usr/bin (and use sudo)
-    - execute: sudo xattr-dr com.apple.quarantine /usr/local/bin ntk
-    - Use sudo for discover subcommand, haven't found a setcap equivalent

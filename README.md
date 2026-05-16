@@ -60,19 +60,29 @@ You can download pre-built binaries of `ntk` and `ntk.exe` on the [releases page
 
 ## Which Binary is for my Operating System
 
-The `ntk` and `ntk.exe` binaries are compressed into descriptive archive names in the form **ntk-{Binary Name}-{feature}**. For Mac you will have to choose _intel_ or _arm_ depending on your CPU architecture. For Linux you will have to choose GNU or musl. All binaries are **x86_64** unless the word _arm_ appears in the archive name. Use the following table to determine which 'Binary Name' corresponds to your operating system:
+The `ntk` and `ntk.exe` binaries are compressed into descriptive archive names in the form **ntk-{version}-{OS}-{arch}-{feature}**.
+- **Windows** users should choose `ntk-vX.Y.Z-windows-x86-pcap.zip` if possible
+  - This requires [you to have npcap installed](#dependencies)
+  - Many features are missing from the 'native' windows archive but you can still use some subcommands
+  - If you are by chance running an ARM build of Windows (unlikely), please instead [compile from source using cargo](#compiling)
+- For **Mac OS** users:
+  - Use `ntk-vX.Y.Z-macos-arm64-pcap.tar.gz` for more recent 'Apple silicon' computers
+  - Use `ntk-vX.Y.Z-macos-x86-pcap.tar.gz` for older 'Intel silicon' computers
+  - **NOTE:** Mac OS currently has a lot of bugs that need to be resolved
+- For **Linux** users:
+  - If your Operating System is 'x86' and GNU based (with glibc version 2.28+) (e.g. Ubuntu 20+, Debian, RHEL 8+, Rocky 8+, Oracle Linux 8+, Fedora):
+    - Consider using `ntk-vX.Y.Z-linux-gnu-x86-pcap.tar.gz` as most of these have libpcap already installed
+    - If libpcap is not installed, you don't want it installed, or your glibc version is too old:
+      - You can use 'native' socket support via `ntk-vX.Y.Z-linux-musl-x86-pcap.tar.gz`
+      - Yes the 'musl' compiled version works on GNU linux
+      - If you want the ARM variant compiled against glibc for GNU based systems, please consider [compile from source using cargo](#compiling)
+  - Use the 'musl-linux' binary on Alpine or on systems that don't have glibc or on ARM systems:
+    - Consider using `ntk-vX.Y.Z-linux-musl-x86-pcap.tar.gz` for 'x86' Alpine-like systems with the Alpine equivalent of libpcap
+    - Consider using `ntk-vX.Y.Z-linux-musl-arm64-pcap.tar.gz` for 'arm64' Alpine-like systems with the Alpine equivalent of libpcap
+    - Use `ntk-vX.Y.Z-linux-musl-x86-native.tar.gz` if libpcap is not desired or not available on 'x86' *Linux* systems (any)
+    - Use `ntk-vX.Y.Z-linux-musl-x86-native.tar.gz` if libpcap is not desired or not available on 'arm64' *Linux* systems (any)
 
-| OS Name  | Binary Name |
-|----------|-------------|
-| Windows  | windows     |
-| Mac OS   | macos       |
-| Ubuntu   | linux-gnu   |
-| Debian   | linux-gnu   |
-| RHEL     | linux-gnu   |
-| Oracle L | linux-gnu   |
-| Alpine   | linux-musl  |
-
-This table is not all inclusive. For Linux users, your distro of choice is likely one of GNU or musl. If not, you will have to [compile from source using cargo](#compiling).
+For Linux users, your distro of choice is likely supported by one of GNU (glibc) or musl (no glibc). If not, you will have to [compile from source using cargo](#compiling).
 
 I am happy to accept any Pull Requests (PRs) into this repo that add additional build jobs for missing architecture/OS combinations. Please first ensure that you have built from source and tested `ntk` on that distro before submitting a PR for the build pipeline file (_.github/workflows/release.yml_). Also ensure your PR updates this table to inform users which binary they should use on that operating system.
 
@@ -87,7 +97,7 @@ The 'native' compiled versions of `ntk` may occasionally fight the operating sys
 
 ## Extracting and Installing the Downloaded Binary
 
-To extract/install on Unix/Linux, from a shell:
+To extract/install on Linux, from a shell:
 ```bash
 # cd to the download location of ntk-archive-name.tar.gz then
 # replace '-archive-name' with the name of your downloaded binary
@@ -127,6 +137,32 @@ cp ntk.exe $env:LOCALAPPDATA\Microsoft\WindowsApps
 # Upon exiting powershell and opening a new one (do that now), the ntk/ntk.exe command should be available
 # IMPORTANT: ntk.exe must be executed from an administrator elevated powershell
 # Test the command executes from your $PATH:
+ntk
+```
+
+To extract on Mac, from zsh:
+```zsh
+# cd to the download location of ntk-archive-name.tar.gz then
+# replace '-archive-name' with the name of your downloaded binary
+tar -xf ntk-archive-name.tar.gz
+
+# the binary will be extracted standalone, e.g.:
+ls -l ntk
+# -rwxr-xr-x 1 trevor trevor 10879064 May  2 22:08 ntk
+
+# Mark the file as executable for all users
+chmod a+x ntk
+
+# Optionally, copy to a location on the $PATH
+# e.g.:
+sudo cp ntk /usr/local/bin
+
+# Tell Mac this binary is safe to run
+sudo xattr-dr com.apple.quarantine /usr/local/bin ntk
+
+# Ensure the binary is executable from the $PATH
+# Some commands (i.e. discover) will require sudo
+# If there is an equivalent to 'setcap cap_net_raw+ep' on Mac: please let me know
 ntk
 ```
 

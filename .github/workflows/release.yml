@@ -8,14 +8,20 @@ on:
 env:
   BINARY_NAME: ntk
   CARGO_TERM_COLOR: always
+  VERSION: ${{ github.ref_name }}
 
 jobs:
   # ─────────────────────────────────────────────
   # Job 1: GNU Linux (ubuntu-latest)
+  # Only build libpcap variant
+  # Will require glibc 2.28+
+  # If you want native, use the musl one on GNU
   # ─────────────────────────────────────────────
   build-linux-gnu:
-    name: Build Linux GNU
+    name: Build Linux GNU glibc 2.28
     runs-on: ubuntu-latest
+    container:
+      image: redhat/ubi8
     steps:
       - uses: actions/checkout@v4
 
@@ -25,7 +31,7 @@ jobs:
           targets: x86_64-unknown-linux-gnu
 
       - name: Install libpcap dev
-        run: sudo apt-get install -y libpcap-dev
+        run: dnf install -y libpcap-devel
 
       - name: Cache cargo
         uses: actions/cache@v4
@@ -37,22 +43,12 @@ jobs:
           key: linux-gnu-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: linux-gnu-cargo-
 
-      - name: Build (no features)
-        run: cargo build --release --no-default-features --target x86_64-unknown-linux-gnu
-
-      - name: Package native binary
-        run: |
-          mkdir -p dist
-          tar -czf dist/${{ env.BINARY_NAME }}-linux-gnu-native.tar.gz \
-            -C target/x86_64-unknown-linux-gnu/release ${{ env.BINARY_NAME }}
-          rm target/x86_64-unknown-linux-gnu/release/${{ env.BINARY_NAME }}
-
       - name: Build (with-libpcap)
         run: cargo build --release --no-default-features --features with-libpcap --target x86_64-unknown-linux-gnu
 
       - name: Package pcap binary
         run: |
-          tar -czf dist/${{ env.BINARY_NAME }}-linux-gnu-pcap.tar.gz \
+          tar -czf dist/${{ env.BINARY_NAME }}-${{ env.VERSION }}-linux-gnu-x86-pcap.tar.gz \
             -C target/x86_64-unknown-linux-gnu/release ${{ env.BINARY_NAME }}
           rm target/x86_64-unknown-linux-gnu/release/${{ env.BINARY_NAME }}
 
@@ -64,6 +60,9 @@ jobs:
 
   # ─────────────────────────────────────────────
   # Job 2: musl Linux (native Alpine container)
+  # Build both native and libpcap
+  # Provides maximum portability for Alpine
+  # The musl native build can be used on GNU as well
   # ─────────────────────────────────────────────
   build-linux-musl:
     name: Build Linux musl
@@ -105,7 +104,7 @@ jobs:
       - name: Package native binary
         run: |
           mkdir -p dist
-          tar -czf dist/${{ env.BINARY_NAME }}-linux-musl-native.tar.gz \
+          tar -czf dist/${{ env.BINARY_NAME }}-${{ env.VERSION }}-linux-musl-x86-native.tar.gz \
             -C target/x86_64-unknown-linux-musl/release ${{ env.BINARY_NAME }}
           rm target/x86_64-unknown-linux-musl/release/${{ env.BINARY_NAME }}
 
@@ -114,7 +113,7 @@ jobs:
 
       - name: Package pcap binary
         run: |
-          tar -czf dist/${{ env.BINARY_NAME }}-linux-musl-pcap.tar.gz \
+          tar -czf dist/${{ env.BINARY_NAME }}-${{ env.VERSION }}-linux-musl-x86-pcap.tar.gz \
             -C target/x86_64-unknown-linux-musl/release ${{ env.BINARY_NAME }}
           rm target/x86_64-unknown-linux-musl/release/${{ env.BINARY_NAME }}
 
@@ -124,12 +123,79 @@ jobs:
           name: linux-musl-binaries
           path: dist/*.tar.gz
 
+# ─────────────────────────────────────────────
+  # Job 3: musl Linux ARM (native Alpine container)
+  # Build both native and libpcap for aarch64
+  # Targets AWS Graviton, Alpine ARM, ARM servers
+  # The musl native build can be used on GNU ARM as well
   # ─────────────────────────────────────────────
-  # Job 3: Windows (windows-latest)
+  build-linux-musl-arm:
+    name: Build Linux musl ARM
+    runs-on: ubuntu-latest
+    container:
+      image: arm64v8/alpine:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          apk add --no-cache \
+            curl \
+            bash \
+            gcc \
+            musl-dev \
+            libpcap-dev \
+            pkgconf
+
+      - name: Install Rust stable
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+            | sh -s -- -y --default-toolchain stable --profile minimal
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: linux-musl-arm-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: linux-musl-arm-cargo-
+
+      - name: Build (no features)
+        run: cargo build --release --no-default-features --target aarch64-unknown-linux-musl
+
+      - name: Package native binary
+        run: |
+          mkdir -p dist
+          tar -czf dist/${{ env.BINARY_NAME }}-${{ env.VERSION }}-linux-musl-arm64-native.tar.gz \
+            -C target/aarch64-unknown-linux-musl/release ${{ env.BINARY_NAME }}
+          rm target/aarch64-unknown-linux-musl/release/${{ env.BINARY_NAME }}
+
+      - name: Build (with-libpcap)
+        run: cargo build --release --no-default-features --features with-libpcap --target aarch64-unknown-linux-musl
+
+      - name: Package pcap binary
+        run: |
+          tar -czf dist/${{ env.BINARY_NAME }}-${{ env.VERSION }}-linux-musl-arm64-pcap.tar.gz \
+            -C target/aarch64-unknown-linux-musl/release ${{ env.BINARY_NAME }}
+          rm target/aarch64-unknown-linux-musl/release/${{ env.BINARY_NAME }}
+
+      - name: Upload musl ARM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-musl-arm-binaries
+          path: dist/*.tar.gz
+
+  # ─────────────────────────────────────────────
+  # Job 4: Windows (windows-latest)
+  # Package both native and libpcap
+  # Full features require libpcap (npcap) on Windows
   # ─────────────────────────────────────────────
   build-windows:
     name: Build Windows
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
 
@@ -161,7 +227,7 @@ jobs:
           New-Item -ItemType Directory -Force dist
           Compress-Archive `
             -Path   target\x86_64-pc-windows-msvc\release\${{ env.BINARY_NAME }}.exe `
-            -DestinationPath dist\${{ env.BINARY_NAME }}-windows-native.zip
+            -DestinationPath dist\${{ env.BINARY_NAME }}-${{ env.VERSION }}-windows-x86-native.zip
           Remove-Item target\x86_64-pc-windows-msvc\release\${{ env.BINARY_NAME }}.exe
 
       - name: Build (with-libpcap)
@@ -172,7 +238,7 @@ jobs:
         run: |
           Compress-Archive `
             -Path   target\x86_64-pc-windows-msvc\release\${{ env.BINARY_NAME }}.exe `
-            -DestinationPath dist\${{ env.BINARY_NAME }}-windows-pcap.zip
+            -DestinationPath dist\${{ env.BINARY_NAME }}-${{ env.VERSION }}-windows-x86-pcap.zip
           Remove-Item target\x86_64-pc-windows-msvc\release\${{ env.BINARY_NAME }}.exe
 
       - name: Upload Windows artifacts
@@ -182,7 +248,9 @@ jobs:
           path: dist/*.zip
 
   # ─────────────────────────────────────────────
-  # Job 4: macOS Intel (x86_64)
+  # Job 5: macOS Intel (x86_64)
+  # Include the libpcap variant only
+  # The equivalent of libpcap is native on MacOS
   # ─────────────────────────────────────────────
   build-macos-intel:
     name: Build macOS Intel
@@ -205,22 +273,12 @@ jobs:
           key: macos-intel-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: macos-intel-cargo-
 
-      - name: Build (no features)
-        run: cargo build --release --no-default-features --target x86_64-apple-darwin
-
-      - name: Package native binary
-        run: |
-          mkdir -p dist
-          tar -czf dist/${{ env.BINARY_NAME }}-macos-intel-native.tar.gz \
-            -C target/x86_64-apple-darwin/release ${{ env.BINARY_NAME }}
-          rm target/x86_64-apple-darwin/release/${{ env.BINARY_NAME }}
-
       - name: Build (with-libpcap)
         run: cargo build --release --no-default-features --features with-libpcap --target x86_64-apple-darwin
 
       - name: Package pcap binary
         run: |
-          tar -czf dist/${{ env.BINARY_NAME }}-macos-intel-pcap.tar.gz \
+          tar -czf dist/${{ env.BINARY_NAME }}-${{ env.VERSION }}-macos-intel-x86-pcap.tar.gz \
             -C target/x86_64-apple-darwin/release ${{ env.BINARY_NAME }}
           rm target/x86_64-apple-darwin/release/${{ env.BINARY_NAME }}
 
@@ -231,7 +289,9 @@ jobs:
           path: dist/*.tar.gz
 
   # ─────────────────────────────────────────────
-  # Job 5: macOS Apple Silicon (aarch64)
+  # Job 6: macOS Apple Silicon (aarch64)
+  # Include the libpcap variant only
+  # The equivalent of libpcap is native on MacOS
   # ─────────────────────────────────────────────
   build-macos-arm:
     name: Build macOS Apple Silicon
@@ -254,22 +314,12 @@ jobs:
           key: macos-arm-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: macos-arm-cargo-
 
-      - name: Build (no features)
-        run: cargo build --release --no-default-features --target aarch64-apple-darwin
-
-      - name: Package native binary
-        run: |
-          mkdir -p dist
-          tar -czf dist/${{ env.BINARY_NAME }}-macos-arm-native.tar.gz \
-            -C target/aarch64-apple-darwin/release ${{ env.BINARY_NAME }}
-          rm target/aarch64-apple-darwin/release/${{ env.BINARY_NAME }}
-
       - name: Build (with-libpcap)
         run: cargo build --release --no-default-features --features with-libpcap --target aarch64-apple-darwin
 
       - name: Package pcap binary
         run: |
-          tar -czf dist/${{ env.BINARY_NAME }}-macos-arm-pcap.tar.gz \
+          tar -czf dist/${{ env.BINARY_NAME }}-${{ env.VERSION }}-macos-arm64-pcap.tar.gz \
             -C target/aarch64-apple-darwin/release ${{ env.BINARY_NAME }}
           rm target/aarch64-apple-darwin/release/${{ env.BINARY_NAME }}
 
@@ -280,7 +330,7 @@ jobs:
           path: dist/*.tar.gz
 
   # ─────────────────────────────────────────────
-  # Job 6: GitHub Release
+  # Job 7: GitHub Release
   # ─────────────────────────────────────────────
   release:
     name: GitHub Release
@@ -297,17 +347,7 @@ jobs:
           path: dist/
           merge-multiple: true
 
-      # dist/ now has the shape:
-      #   dist/ntk-linux-gnu-native.tar.gz
-      #   dist/ntk-linux-gnu-pcap.tar.gz
-      #   dist/ntk-linux-musl-native.tar.gz
-      #   dist/ntk-linux-musl-pcap.tar.gz
-      #   dist/ntk-windows-native.zip
-      #   dist/ntk-windows-pcap.zip
-      #   dist/ntk-macos-intel-native.tar.gz
-      #   dist/ntk-macos-intel-pcap.tar.gz
-      #   dist/ntk-macos-arm-native.tar.gz
-      #   dist/ntk-macos-arm-pcap.tar.gz
+      # dist/ntk-linux-gnu-pcap.tar.gz etc.
       - name: Create release and upload assets
         uses: softprops/action-gh-release@v2
         with:
@@ -317,7 +357,7 @@ jobs:
           files: dist/*
 
   # ─────────────────────────────────────────────
-  # Job 7: Publish to crates.io
+  # Publish to crates.io (not sure yet)
   # ─────────────────────────────────────────────
   # publish:
   #   name: Publish to crates.io
