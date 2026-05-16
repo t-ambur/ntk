@@ -13,7 +13,7 @@ Each version change in `ntk` should be recorded here.
     - Clarify that musl 'native' builds can run on GNU linux
     - Replace the 'which binary' table with a bulleted list that is more detailed
 - Change the build environment for GNU linux with-libpcap to support older glibc versions
-- Remove the build combinations (i.e. native/libpcap + OS) that didn't make sense to run
+- Remove the pre-built binary combinations (i.e. native/libpcap + OS) that didn't make sense to archive
 - Add version tag to the release archives
 - Add the architecture to each release archive (i.e. x86 or arm64)
 
