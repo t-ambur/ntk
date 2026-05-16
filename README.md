@@ -87,6 +87,8 @@ I am happy to accept any Pull Requests (PRs) into this repo that add additional 
 
 ## Should I Use Native or Pcap
 
+For the most part, you should [follow my recommendations in the previous section](#which-binary-is-for-my-operating-system). This section provides some further context.
+
 Use **ntk-{Binary Name}-native** if your concern is portability and/or use on systems where a libpcap equivalent is unavailable or not installed. This portable version works very well on Ubuntu because GNU linux has excellent support for raw/native socket usage. This **native** socket usage compiled version of `ntk` was the originally envisioned version of Network ToolKit.
 
 Use **ntk-{Binary Name}-pcap** if you want more accurate packet capture support (e.g. packet route timing) or all of the features to be available on Windows. The _native_ binary for Windows **does NOT** contain all the functionality of `ntk.exe`. You must [install npcap in API compatable mode on Windows](#dependencies) or live with using a subset of the functionality `ntk.exe`. This requirement is simply because Windows native socket support is nearly non-existant if you wish to directly manipulate packets.

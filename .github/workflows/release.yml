@@ -48,6 +48,7 @@ jobs:
 
       - name: Package pcap binary
         run: |
+          mkdir -p dist
           tar -czf dist/${{ env.BINARY_NAME }}-${{ env.VERSION }}-linux-gnu-x86-pcap.tar.gz \
             -C target/x86_64-unknown-linux-gnu/release ${{ env.BINARY_NAME }}
           rm target/x86_64-unknown-linux-gnu/release/${{ env.BINARY_NAME }}
@@ -60,7 +61,7 @@ jobs:
 
   # ─────────────────────────────────────────────
   # Job 2: musl Linux (native Alpine container)
-  # Build both native and libpcap
+  # Build only native
   # Provides maximum portability for Alpine
   # The musl native build can be used on GNU as well
   # ─────────────────────────────────────────────
@@ -116,7 +117,7 @@ jobs:
 
 # ─────────────────────────────────────────────
   # Job 3: musl Linux ARM (native Alpine container)
-  # Build both native and libpcap for aarch64
+  # Build only native for aarch64
   # Targets AWS Graviton, Alpine ARM, ARM servers
   # The musl native build can be used on GNU ARM as well
   # ─────────────────────────────────────────────
@@ -253,6 +254,7 @@ jobs:
 
       - name: Package pcap binary
         run: |
+          mkdir -p dist
           tar -czf dist/${{ env.BINARY_NAME }}-${{ env.VERSION }}-macos-intel-x86-pcap.tar.gz \
             -C target/x86_64-apple-darwin/release ${{ env.BINARY_NAME }}
           rm target/x86_64-apple-darwin/release/${{ env.BINARY_NAME }}
@@ -294,6 +296,7 @@ jobs:
 
       - name: Package pcap binary
         run: |
+          mkdir -p dist
           tar -czf dist/${{ env.BINARY_NAME }}-${{ env.VERSION }}-macos-arm64-pcap.tar.gz \
             -C target/aarch64-apple-darwin/release ${{ env.BINARY_NAME }}
           rm target/aarch64-apple-darwin/release/${{ env.BINARY_NAME }}
