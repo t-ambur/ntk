@@ -106,6 +106,7 @@ where
                     }
                 }
                 Err(pcap::Error::NoMorePackets) => continue,
+                Err(pcap::Error::TimeoutExpired) => continue,
                 Err(e) => { eprintln!("pcap error: {e}"); break; }
             }
         }

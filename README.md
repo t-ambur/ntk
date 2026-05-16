@@ -308,7 +308,6 @@ Performing TCP SYN probe of: '8.8.8.8' ...
 L7:
 Performing DNS lookup of: '8.8.8.8'...
 dns.google
-DNS hostname: dns.google
 
 Performing HTTP fetch --no-content redirect test against 'https://8.8.8.8' ...
 
@@ -345,8 +344,6 @@ Tracing route to: '10.0.0.1' ...
 
 L4:
 Performing TCP SYN probe of: '10.0.0.1' ...
-pcap error: timeout expired while reading from a live capture
-pcap error: timeout expired while reading from a live capture
 49152: Dynamic / Ephemeral Port
 443: HTTPS
 80: HTTP

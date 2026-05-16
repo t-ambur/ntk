@@ -2,6 +2,11 @@
 
 Each version change in `ntk` should be recorded here.
 
+## v0.3.1
+
+- Windows bugfix for the analyze subcommand printing 'pcap error: timeout expired while reading from a live capture'
+- Bugfix for DNS hostname printing twice in analyze subcommand
+
 ## v0.3.0
 
 - Print friendly names on Windows for what was previously just GUID interface responses (discover and gateway subcommands)

@@ -13,13 +13,13 @@ This is a mental notebook of possible TODOs on this project.
 - Ping out of a specific interface
 - Set IP Addresses?
 - Banner search/grab? e.g. ssh, http, telnet, ftp
+- Lookup hostname for traceroute hops
 
 ## Bugfixes
 - Traceroute/Ping to cloudflare DNS 1.1.1.1 times out on final hop
     - Warrants further investigation (EchoResponse from a different IP?)
     - Noticed a similar issue on 8.8.8.8 in more complicated network scenarios
 - When downloading using `ntk fetch -d` the archives from the release page the filenames are incorrect
-- DNS lookup command prints the discovered hostname twice when ran via analyze
 - Fetch not found should throw/panic an error instead of downloading a 'not found' to a text file
 
 ## General / Misc
@@ -34,8 +34,6 @@ This is a mental notebook of possible TODOs on this project.
 
 ## Windows
 - MSI installer?
-- Mild bug - shows 'pcap error: timeout expired while reading from a live capture' during analyze scan
-    - Still seems to complete fine- this may be leaking out of the subcommand into the analyze function
 - ARP discovery sometimes seems less than expected on Windows over WiFi interface
 
 ## Mac
