@@ -264,7 +264,7 @@ Failed to perform DNS lookup: DNS lookup of IP address failed: failed to lookup 
 Performing HTTP fetch --no-content redirect test against 'https://10.0.0.1' ...
 
 Request #1 to URL: https://10.0.0.1
-200
+200 - "OK"
 (No redirects)
 ```
 
@@ -312,11 +312,11 @@ DNS hostname: dns.google
 Performing HTTP fetch --no-content redirect test against 'https://8.8.8.8' ...
 
 Request #1 to URL: https://8.8.8.8
-302
+302 - "Found"
 Redirect -> https://dns.google/
 
 Request #2 to URL: https://dns.google/
-200
+200 - "OK"
 ```
 
 Example 3 (Windows):  
@@ -414,11 +414,11 @@ Example 2 (Windows):
 Specifying an interface via the 'friendly name' of the interface:  
 `ntk d -i Ethernet`
 ```
-[*] Discovering devices on Interface: '\Device\NPF_{49A63064-AB14-49AD-AB87-5D60E5866F85}' ...
+[*] Discovering devices on Interface: 'Ethernet' : '{49A63064-AB14-49AD-AB87-5D60E5866F85}' ...
 IP               MAC
 10.0.0.1         aa:aa:aa:aa:aa:aa
 ...
-[*] Discovery complete for \Device\NPF_{49A63064-AB14-49AD-AB87-5D60E5866F85}
+[*] Discovery complete for 'Ethernet' : '{49A63064-AB14-49AD-AB87-5D60E5866F85}'
 ```
 
 ## Fetch
@@ -458,11 +458,23 @@ Doing what the `ntk fetch` subcommand was created for, a simple redirect test:
 `ntk fetch -i -n 8.8.8.8`
 ```
 Request #1 to URL: https://8.8.8.8
-302
+302 - "Found"
 Redirect -> https://dns.google/
 
 Request #2 to URL: https://dns.google/
-200
+200 - "OK"
+```
+
+Example 1:  
+Same test, but against a URL:  
+`ntk f -n google.com`
+```
+Request #1 to URL: https://google.com
+301 - "Moved Permanently"
+Redirect -> https://www.google.com/
+
+Request #2 to URL: https://www.google.com/
+200 - "OK"
 ```
 
 Example 2:  
@@ -504,10 +516,10 @@ The 'normal' route string you see on Linux:
 ```
 
 Example 2 (Windows):  
-The 'GUID' of the Windows interface in the Linux style routing string:  
+The 'Friendly Name' : 'GUID' of the Windows interface in the Linux style routing string:  
 `.\ntk.exe gateway`
 ```
-'{1BFFD6E1-A5C4-47C7-B09B-2E7A6E68899C}' routes to: '[10.0.0.1]'
+'Ethernet' : '{1BFFD6E1-A5C4-47C7-B09B-2E7A6E68899C}' routes to: '[10.0.0.1]'
 ```
 
 Example 3 (Linux or WSL2):  
@@ -522,6 +534,13 @@ Showing only the interface that connects to the gateway(s):
 `ntk g -i`
 ```
 eth1
+```
+
+Example 5 (Windows):  
+Showing only the 'Friendly Name' : 'GUID' of the Windows interface that connects to the gateway(s):  
+`ntk g -i`
+```
+'Ethernet' : '{1BFFD6E1-A5C4-47C7-B09B-2E7A6E68899C}'
 ```
 
 ## Interface

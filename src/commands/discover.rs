@@ -107,20 +107,20 @@ pub async fn scan_interface(interface: NetworkInterface, collection_time: u64) -
 
     if prefix <= 0 {
         #[cfg(windows)]
-        println!("Interface: '{}' : '{}' ... Will not be discovered as network prefix is less than or equal to zero.", get_netdev_friendly_name(&interface.name), interface_name);
+        println!("Interface: '{}' : '{}' ... Will not be discovered as network prefix is less than or equal to zero.", get_netdev_friendly_name(&interface.name), interface_name.strip_prefix(r"\Device\NPF_").unwrap_or(&interface_name));
         #[cfg(not(windows))]
         println!("Interface: '{}' ... Will not be discovered as network prefix is less than or equal to zero.", interface_name);
         return Ok(())
     } else if prefix >= 32 {
         #[cfg(windows)]
-        println!("Interface: '{}' : '{}' ...Will not be discovered as network prefix is greater than or equal to 32.", get_netdev_friendly_name(&interface.name), interface_name);
+        println!("Interface: '{}' : '{}' ...Will not be discovered as network prefix is greater than or equal to 32.", get_netdev_friendly_name(&interface.name), interface_name.strip_prefix(r"\Device\NPF_").unwrap_or(&interface_name));
         #[cfg(not(windows))]
         println!("Interface: '{}' ... Will not be discovered as network prefix is greater than or equal to 32.", interface_name);
         return Ok(())
     }
     
     #[cfg(windows)]
-    println!("[*] Discovering devices on Interface: '{}' : '{}' ...",  get_netdev_friendly_name(&interface.name), interface_name);
+    println!("[*] Discovering devices on Interface: '{}' : '{}' ...",  get_netdev_friendly_name(&interface.name), interface_name.strip_prefix(r"\Device\NPF_").unwrap_or(&interface_name));
     #[cfg(not(windows))]
     println!("[*] Discovering devices on Interface: '{}' ...", interface_name);
 

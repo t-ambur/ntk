@@ -4,8 +4,9 @@ Each version change in `ntk` should be recorded here.
 
 ## v0.3.0
 
-- Print friendly names on Windows for what was previously just GUID interface responses
+- Print friendly names on Windows for what was previously just GUID interface responses (discover and gateway subcommands)
 - Quote GUID interface names on Windows to make them easier to copy+paste
+- Remove the device path to GUIDs printed from the gateway and discover subcommands on windows
 - The standard 'GET' fetch subcommand now shows the 'canonical_reason' that corresponds with the code
     - e.g. 200 - OK
 - Support ARM via musl builds

@@ -25,6 +25,9 @@ pub async fn run(first_match: bool, gateways_only: bool, interface_only: bool) -
         }
     } else if interface_only {
         match get_default_interface() {
+            #[cfg(windows)]
+            Ok(default_if) => { println!("'{}' : '{}'", get_netdev_friendly_name(&default_if.name), default_if.name); Ok(default_if.name) }
+            #[cfg(not(windows))]
             Ok(default_if) => { println!("{}", default_if.name); Ok(default_if.name) }
             Err(s) => { return Err(NtkError::NetDevDefaultInterfaceFailure(s)) }
         }

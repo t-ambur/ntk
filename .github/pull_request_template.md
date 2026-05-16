@@ -5,7 +5,8 @@
 - [ ] Version bumped in `Cargo.toml`
 - [ ] Version bumped in `src/cli.rs`
 - [ ] `CHANGELOG.md` updated
-- [ ] Tested on GNU Linux and Windows (check all that apply)
+- [ ] `README.md` updated
+- [ ] Tested on Linux and Windows (provide specifics in Testing block below)
 - [ ] Feature flags verified (`with-libpcap` and default)
 
 ## Testing
