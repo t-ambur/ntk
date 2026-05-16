@@ -669,7 +669,7 @@ fn open_capture_thread(
                 }
                 Err(pcap::Error::NoMorePackets) => continue,
                 Err(pcap::Error::TimeoutExpired) => continue,
-                Err(e) => { eprintln!("pcap error: {e}"); break; }
+                Err(e) => { eprintln!("pcap error: '{:?}'", e); break; }
             }
         }
         // println!("DEBUG: Exit thread loop!");
@@ -735,7 +735,7 @@ fn open_capture_thread_ack(
                 }
                 Err(pcap::Error::NoMorePackets) => continue,
                 Err(pcap::Error::TimeoutExpired) => continue,
-                Err(e) => { eprintln!("pcap error: {e}"); break; }
+                Err(e) => { eprintln!("pcap error: '{:?}'", e); break; }
             }
         }
 
