@@ -48,6 +48,19 @@ fn get_interface(interface_name: &str) -> Result<NetworkInterface, NtkError> {
     Err(NtkError::IfNameNotFound(String::from(interface_name)))
 }
 
+/// Function on windows to retrieve a friendly name from a GUID interface
+#[cfg(windows)]
+fn get_netdev_friendly_name(pnet_name: &str) -> Option<String> {
+    let upper = pnet_name.to_ascii_uppercase();
+    get_interfaces()
+        .into_iter()
+        .find(|nd_if| {
+            nd_if.name.as_deref()
+                .is_some_and(|n| upper.contains(&n.to_ascii_uppercase()))
+        })
+        .and_then(|nd_if| nd_if.friendly_name)
+}
+
 /// Runs an ARP scan against either all interfaces or the specified interface name
 pub async fn run(interface_name: Option<String>, collection_time: u64) -> Result<(), NtkError> {
     match interface_name {
@@ -62,7 +75,7 @@ pub async fn run(interface_name: Option<String>, collection_time: u64) -> Result
             println!("Scanning all interfaces because --interface was not provided");
             let interfaces = datalink::interfaces();
             for interface in interfaces {
-                if interface.name.eq("lo") || interface.name.starts_with("loopback") {
+                if interface.name.to_lowercase().eq("lo") || interface.name.to_lowercase().starts_with("loopback") {
                     println!("Skipping loopback interface: {}", interface.name);
                     continue;
                 }
@@ -103,13 +116,22 @@ pub async fn scan_interface(interface: NetworkInterface, collection_time: u64) -
     let prefix = source_ip_network.prefix();
 
     if prefix <= 0 {
+        #[cfg(windows)]
+        println!("Interface: '{}' : '{}' ... Will not be discovered as network prefix is less than or equal to zero.", get_netdev_friendly_name(interface.name.clone()), interface_name);
+        #[cfg(not(windows))]
         println!("Interface: '{}' ... Will not be discovered as network prefix is less than or equal to zero.", interface_name);
         return Ok(())
     } else if prefix >= 32 {
+        #[cfg(windows)]
+        println!("Interface: '{}' : '{}' ...Will not be discovered as network prefix is greater than or equal to 32.", get_netdev_friendly_name(interface.name.clone()), interface_name);
+        #[cfg(not(windows))]
         println!("Interface: '{}' ... Will not be discovered as network prefix is greater than or equal to 32.", interface_name);
         return Ok(())
     }
     
+    #[cfg(windows)]
+    println!("[*] Discovering devices on Interface: '{}' : '{}' ...",  get_netdev_friendly_name(interface.name.clone()), interface_name);
+    #[cfg(not(windows))]
     println!("[*] Discovering devices on Interface: '{}' ...", interface_name);
 
     let (mut tx, mut rx) = match datalink::channel(&interface, Default::default()) {
@@ -147,6 +169,9 @@ pub async fn scan_interface(interface: NetworkInterface, collection_time: u64) -
         }
     }
     
+    #[cfg(windows)]
+    println!("[*] Discovery complete for '{}' : '{}'", get_netdev_friendly_name(interface.name.clone()), interface_name);
+    #[cfg(not(windows))]
     println!("[*] Discovery complete for {interface_name}");
     Ok(())
 }

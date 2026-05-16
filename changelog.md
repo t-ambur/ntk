@@ -4,6 +4,10 @@ Each version change in `ntk` should be recorded here.
 
 ## v0.3.0
 
+- Print friendly names on Windows for what was previously just GUID interface responses
+- Quote GUID interface names on Windows to make them easier to copy+paste
+- The standard 'GET' fetch subcommand now shows the 'canonical_reason' that corresponds with the code
+    - e.g. 200 - OK
 - Support ARM via musl builds
     - Clarify that musl 'native' builds can run on GNU linux
     - Replace the 'which binary' table with a bulleted list that is more detailed

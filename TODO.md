@@ -10,6 +10,7 @@ This is a mental notebook of possible TODOs on this project.
     - PATCH
     - DELETE
 - Ping -> wait for response -> ping again (similar to expected behavior)
+- Ping out of a specific interface
 - Set IP Addresses?
 - Banner search/grab? e.g. ssh, http, telnet, ftp
 
@@ -26,23 +27,19 @@ This is a mental notebook of possible TODOs on this project.
 
 ## General / Misc
 - Unit tests maybe
-- Release pipeline should add tag version to the archives
+- Look into adding to package managers: apt, dnf/yum, Alpine, brew, choco, snap, etc.
 - Consider crates.io release
-- Look into adding to package managers on Ubuntu, Alpine, etc.
-- Fetch should show status message alongside code 
 
 ## Linux
-- Retest on RHEL or CentOS or Oracle Linux
+- Retest both builds on RHEL or CentOS or Oracle Linux 8+
+- Restest both builds on Ubuntu
 - Test on Alpine
 
 ## Windows
 - MSI installer?
-- Discover subcommand should show friendly names of interfaces alongside GUID identifiers
-- Gateway subcommand should show friendly names of interfaces alongside GUID identifiers
-- Look into adding to a package manager such as choco
 
 ## Mac
-- Test on ARM / Apple Silicon
+- Bugfix then retest on ARM / Apple Silicon
     - Ping and Scan subcommands have socket issues even with sudo
     - Gateway looks strange for default route
 - Test on Intel
