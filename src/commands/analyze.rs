@@ -162,7 +162,7 @@ pub async fn run(input_str: &str, web_lookup_mac: bool, ignore_certs: bool, http
     println!("Performing DNS lookup of: '{}'...", &ip_str);
     
     match commands::lookup::run_lookup_addr(target_ip).await {
-        Ok(hostname) => { println!("DNS hostname: {}", &hostname); }
+        Ok(_) => {}
         Err(e) => { eprintln!("Failed to perform DNS lookup: {e}"); }
     }
 
