@@ -4,7 +4,7 @@ use netdev::{get_default_interface, get_default_gateway};
 use crate::error::NtkError;
 
 #[cfg(windows)]
-use crate::commands::discover::get_netdev_friendly_name;
+use crate::util::get_netdev_friendly_name;
 
 /// Gets the default gateway 'ip route' string from the operating system.
 ///   Can optionally only show the gateway IP Addresses or just the origin interface.
