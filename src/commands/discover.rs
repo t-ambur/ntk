@@ -160,7 +160,7 @@ pub async fn scan_interface(interface: NetworkInterface, collection_time: u64) -
     }
     
     #[cfg(windows)]
-    println!("[*] Discovery complete for '{}' : '{}'", get_netdev_friendly_name(&interface.name), interface_name);
+    println!("[*] Discovery complete for '{}' : '{}'", get_netdev_friendly_name(&interface.name), interface_name.strip_prefix(r"\Device\NPF_").unwrap_or(&interface_name));
     #[cfg(not(windows))]
     println!("[*] Discovery complete for {interface_name}");
     Ok(())
