@@ -67,23 +67,23 @@ The `ntk` and `ntk.exe` binaries are compressed into descriptive archive names i
   - If you are by chance running an ARM build of Windows (unlikely), please instead [compile from source using cargo](#compiling)
 - For **Mac OS** users:
   - Use `ntk-vX.Y.Z-macos-arm64-pcap.tar.gz` for more recent 'Apple silicon' computers
-  - Use `ntk-vX.Y.Z-macos-x86-pcap.tar.gz` for older 'Intel silicon' computers
+  - Use `ntk-vX.Y.Z-macos-intel-x86-pcap.tar.gz` for older 'Intel silicon' computers
   - **NOTE:** Mac OS currently has a lot of bugs that need to be resolved
 - For **Linux** users:
   - If your Operating System is 'x86' and GNU based (with glibc version 2.28+) (e.g. Ubuntu 20+, Debian, RHEL 8+, Rocky 8+, Oracle Linux 8+, Fedora):
     - Consider using `ntk-vX.Y.Z-linux-gnu-x86-pcap.tar.gz` as most of these have libpcap already installed
     - If libpcap is not installed, you don't want it installed, or your glibc version is too old:
-      - You can use 'native' socket support via `ntk-vX.Y.Z-linux-musl-x86-pcap.tar.gz`
+      - You can use 'native' socket support via `ntk-vX.Y.Z-linux-musl-x86-native.tar.gz`
       - Yes the 'musl' compiled version works on GNU linux
-      - If you want the ARM variant compiled against glibc for GNU based systems, please consider [compile from source using cargo](#compiling)
+      - If you want the ARM variant compiled against glibc for GNU based systems, please consider [compiling from source using cargo](#compiling)
   - Use the 'musl-linux' binary on Alpine or on systems that don't have glibc or on ARM systems:
     - Use `ntk-vX.Y.Z-linux-musl-x86-native.tar.gz` on 'x86' *Linux* systems (any)
     - Use `ntk-vX.Y.Z-linux-musl-arm64-native.tar.gz` on 'arm64' *Linux* systems (any)
-    - If you want the libpcap variant for musl, please consider [compile from source using cargo](#compiling)
+    - If you want the libpcap variant for musl, please consider [compiling from source using cargo](#compiling)
 
 For Linux users, your distro of choice is likely supported by one of GNU (glibc) or musl (no glibc). If not, you will have to [compile from source using cargo](#compiling).
 
-I am happy to accept any Pull Requests (PRs) into this repo that add additional build jobs for missing architecture/OS combinations. Please first ensure that you have built from source and tested `ntk` on that distro before submitting a PR for the build pipeline file (_.github/workflows/release.yml_). Also ensure your PR updates this table to inform users which binary they should use on that operating system.
+I am happy to accept any Pull Requests (PRs) into this repo that add additional build jobs for missing architecture/OS combinations. Please note that some combinations have been omitted from having pre-compiled binaries because those combinations are unnecessary. If you wish to submit a request: first ensure that you have built from source and tested `ntk` on that distro before submitting a PR for the build pipeline file (_.github/workflows/release.yml_). Also ensure your PR updates this `README.md` file to inform users which binary and feature they should use on that operating system.
 
 ## Should I Use Native or Pcap
 
