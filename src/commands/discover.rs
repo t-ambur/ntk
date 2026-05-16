@@ -10,6 +10,9 @@ use std::time::{Duration, Instant};
 use crate::error::NtkError;
 
 #[cfg(windows)]
+use crate::util::get_netdev_friendly_name;
+
+#[cfg(windows)]
 use netdev::get_interfaces;
 
 /// Function to get the network interface by name or default to the first available one
@@ -62,7 +65,7 @@ pub async fn run(interface_name: Option<String>, collection_time: u64) -> Result
             println!("Scanning all interfaces because --interface was not provided");
             let interfaces = datalink::interfaces();
             for interface in interfaces {
-                if interface.name.eq("lo") || interface.name.starts_with("loopback") {
+                if interface.name.to_lowercase().eq("lo") || interface.name.to_lowercase().starts_with("loopback") {
                     println!("Skipping loopback interface: {}", interface.name);
                     continue;
                 }
@@ -103,13 +106,22 @@ pub async fn scan_interface(interface: NetworkInterface, collection_time: u64) -
     let prefix = source_ip_network.prefix();
 
     if prefix <= 0 {
+        #[cfg(windows)]
+        println!("Interface: '{}' : '{}' ... Will not be discovered as network prefix is less than or equal to zero.", get_netdev_friendly_name(&interface.name), interface_name.strip_prefix(r"\Device\NPF_").unwrap_or(&interface_name));
+        #[cfg(not(windows))]
         println!("Interface: '{}' ... Will not be discovered as network prefix is less than or equal to zero.", interface_name);
         return Ok(())
     } else if prefix >= 32 {
+        #[cfg(windows)]
+        println!("Interface: '{}' : '{}' ...Will not be discovered as network prefix is greater than or equal to 32.", get_netdev_friendly_name(&interface.name), interface_name.strip_prefix(r"\Device\NPF_").unwrap_or(&interface_name));
+        #[cfg(not(windows))]
         println!("Interface: '{}' ... Will not be discovered as network prefix is greater than or equal to 32.", interface_name);
         return Ok(())
     }
     
+    #[cfg(windows)]
+    println!("[*] Discovering devices on Interface: '{}' : '{}' ...",  get_netdev_friendly_name(&interface.name), interface_name.strip_prefix(r"\Device\NPF_").unwrap_or(&interface_name));
+    #[cfg(not(windows))]
     println!("[*] Discovering devices on Interface: '{}' ...", interface_name);
 
     let (mut tx, mut rx) = match datalink::channel(&interface, Default::default()) {
@@ -147,6 +159,9 @@ pub async fn scan_interface(interface: NetworkInterface, collection_time: u64) -
         }
     }
     
+    #[cfg(windows)]
+    println!("[*] Discovery complete for '{}' : '{}'", get_netdev_friendly_name(&interface.name), interface_name.strip_prefix(r"\Device\NPF_").unwrap_or(&interface_name));
+    #[cfg(not(windows))]
     println!("[*] Discovery complete for {interface_name}");
     Ok(())
 }

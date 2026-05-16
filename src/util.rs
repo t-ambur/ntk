@@ -9,6 +9,9 @@ use pcap::Device;
 #[cfg(feature = "with-libpcap")]
 use crate::error::NtkError;
 
+#[cfg(windows)]
+use netdev::get_interfaces;
+
 /// Asserts a string is a valid IPv4 addresses and then converts it to the core::net type
 pub fn str_to_ip(s: &str) -> Ipv4Addr {
     assert_is_valid_ipv4(&s);
@@ -208,6 +211,22 @@ pub fn parse_icmp_packet(data: &[u8]) -> Option<IcmpResponse> {
         _ => None,
     }
 }
+
+/// Function on windows to retrieve a friendly name from a GUID interface
+#[cfg(windows)]
+pub fn get_netdev_friendly_name(pnet_name: &str) -> String {
+    let upper = pnet_name.to_ascii_uppercase();
+    get_interfaces()
+        .into_iter()
+        .find(|nd_if| {
+            upper.contains(&nd_if.name.to_ascii_uppercase())
+        })
+        .and_then(|nd_if| nd_if.friendly_name)
+        .unwrap_or(String::from("Unknown"))
+}
+
+
+// Old code - for reference only
 
 // /// Convenience wrapper retained for ping, which only cares about EchoReply.
 // #[cfg(feature = "with-libpcap")]

@@ -88,7 +88,7 @@ pub async fn run_fetch(url_or_ip: &str, ignore_certs: bool, show_headers: bool, 
         println!("\nRequest #{} to URL: {}", hop + 1, url);
 
         let resp = client.get(&url).send().await.or_else(|e| Err(NtkError::ReqwestSendFailure(e)))?;
-        println!("{}", resp.status().as_str());
+        println!("{} - {:?}", resp.status().as_str(), resp.status().canonical_reason().unwrap_or("Unknown"));
 
         if show_headers {
             println!("Response Headers:");

@@ -3,7 +3,7 @@ use clap::{Parser, Subcommand};
 #[derive(Parser)]
 #[command(name = "ntk")]
 #[command(author = "Trevor Amburgey")]
-#[command(version = "0.2.0")]
+#[command(version = "0.3.0")]
 #[command(about = "Network Toolkit - Cross-platform network diagnostics")]
 #[command(infer_subcommands = true)]
 #[command(infer_long_args = true)]
