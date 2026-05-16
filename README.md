@@ -77,16 +77,17 @@ The `ntk` and `ntk.exe` binaries are compressed into descriptive archive names i
       - Yes the 'musl' compiled version works on GNU linux
       - If you want the ARM variant compiled against glibc for GNU based systems, please consider [compile from source using cargo](#compiling)
   - Use the 'musl-linux' binary on Alpine or on systems that don't have glibc or on ARM systems:
-    - Consider using `ntk-vX.Y.Z-linux-musl-x86-pcap.tar.gz` for 'x86' Alpine-like systems with the Alpine equivalent of libpcap
-    - Consider using `ntk-vX.Y.Z-linux-musl-arm64-pcap.tar.gz` for 'arm64' Alpine-like systems with the Alpine equivalent of libpcap
-    - Use `ntk-vX.Y.Z-linux-musl-x86-native.tar.gz` if libpcap is not desired or not available on 'x86' *Linux* systems (any)
-    - Use `ntk-vX.Y.Z-linux-musl-x86-native.tar.gz` if libpcap is not desired or not available on 'arm64' *Linux* systems (any)
+    - Use `ntk-vX.Y.Z-linux-musl-x86-native.tar.gz` on 'x86' *Linux* systems (any)
+    - Use `ntk-vX.Y.Z-linux-musl-arm64-native.tar.gz` on 'arm64' *Linux* systems (any)
+    - If you want the libpcap variant for musl, please consider [compile from source using cargo](#compiling)
 
 For Linux users, your distro of choice is likely supported by one of GNU (glibc) or musl (no glibc). If not, you will have to [compile from source using cargo](#compiling).
 
 I am happy to accept any Pull Requests (PRs) into this repo that add additional build jobs for missing architecture/OS combinations. Please first ensure that you have built from source and tested `ntk` on that distro before submitting a PR for the build pipeline file (_.github/workflows/release.yml_). Also ensure your PR updates this table to inform users which binary they should use on that operating system.
 
 ## Should I Use Native or Pcap
+
+For the most part, you should [follow my recommendations in the previous section](#which-binary-is-for-my-operating-system). This section provides some further context.
 
 Use **ntk-{Binary Name}-native** if your concern is portability and/or use on systems where a libpcap equivalent is unavailable or not installed. This portable version works very well on Ubuntu because GNU linux has excellent support for raw/native socket usage. This **native** socket usage compiled version of `ntk` was the originally envisioned version of Network ToolKit.
 
