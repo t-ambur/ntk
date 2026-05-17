@@ -262,10 +262,22 @@ async fn rx_tr_packets(
             }
             Ok(None) => break,
             Err(_elapsed) => {
-                println!("{} *", next_ttl);
                 break;
             }         
         }
+    }
+
+    // Drain whatever is stashed (e.g. hop e in a-z may be * but hop f could have been captured)
+    while next_ttl <= count as u8 {
+        if let Some((a, s, fin, rt)) = stash.remove(&next_ttl) {
+            let elapsed = rt - s;
+            println!("{:<ttl_w$} {:<ip_w$} {:.2?}", next_ttl, a, elapsed,
+                    ttl_w = 3, ip_w = 16);
+            if fin { drop(handle); return Ok(()); }
+        } else {
+            println!("{:<ttl_w$} *", next_ttl, ttl_w = 3);
+        }
+        next_ttl += 1;
     }
 
     drop(handle);
@@ -343,7 +355,7 @@ async fn rx_tr_packets(
     let count = hops.len();
     let mut received: usize = 0;
     let mut next_ttl: u8 = 1;
-    let mut stash: std::collections::HashMap<u8, (std::net::IpAddr, Duration, bool)> = std::collections::HashMap::new();
+    let mut stash: std::collections::HashMap<u8, (IpAddr, Duration, bool, Duration)> = std::collections::HashMap::new();
 
     loop {
         match iter.next_with_timeout(Duration::from_secs(timeout_seconds)).map_err(NtkError::IcmpReceive)?
@@ -376,12 +388,12 @@ async fn rx_tr_packets(
                     let idx = ttl as usize - 1;
                     // Add the response to the hashmap
                     if let Some(&(_, sent_at)) = hops.get(idx) {
-                        stash.insert(ttl, (addr, sent_at, is_final));
+                        stash.insert(ttl, (addr, sent_at, is_final, arrived));
                         received += 1;
 
                         // Attempt to drain the map starting from the first sequence number
-                        while let Some((a, s, fin)) = stash.remove(&next_ttl) {
-                            let elapsed = arrived - s;
+                        while let Some((a, s, fin, stashed_arrival)) = stash.remove(&next_ttl) {
+                            let elapsed = stashed_arrival - s;
                             println!("{:<ttl_w$} {:<ip_w$} {:.2?}", next_ttl, a, elapsed,
                                      ttl_w = 3, ip_w = 16);
                             next_ttl += 1;
@@ -393,10 +405,22 @@ async fn rx_tr_packets(
                 }
             }
             None => {
-                println!("{} *", next_ttl);
                 break;
             }
         }
+    }
+
+    // Drain whatever is stashed (e.g. hop e in a-z may be * but hop f could have been captured)
+    while next_ttl <= count as u8 {
+        if let Some((a, s, fin, stashed_arrival)) = stash.remove(&next_ttl) {
+            let elapsed = stashed_arrival - s;
+            println!("{:<ttl_w$} {:<ip_w$} {:.2?}", next_ttl, a, elapsed,
+                    ttl_w = 3, ip_w = 16);
+            if fin { return Ok(()); }
+        } else {
+            println!("{:<ttl_w$} *", next_ttl, ttl_w = 3);
+        }
+        next_ttl += 1;
     }
 
     Ok(())

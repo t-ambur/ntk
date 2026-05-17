@@ -12,6 +12,7 @@ Each version change in `ntk` should be recorded here.
 - The fetch subcommand now shows the total Megabytes (MB (1024*1024 bytes)) downloaded at completion
 - The fetch subcommand no longer shows byte chunks downloaded for files without a *CONTENT_LENGTH* header
 - Fix a typo in the Mac unarchive instructions and verifed Intel x86 pcap archive works (using sudo for some commands)
+- Bugfix traceroute so it continues to run after a single hop prints TTL exceeded (*)
 
 ## v0.3.1
 
