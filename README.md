@@ -11,7 +11,7 @@ The `ntk` binary is many times smaller in size than all of these other comparabl
 ```
 Network Toolkit - Cross-platform network diagnostics
 By Trevor Amburgey
-v0.1.0
+vX.Y.Z
 
 Usage: ntk <COMMAND>
 
@@ -68,7 +68,6 @@ The `ntk` and `ntk.exe` binaries are compressed into descriptive archive names i
 - For **Mac OS** users:
   - Use `ntk-vX.Y.Z-macos-arm64-pcap.tar.gz` for more recent 'Apple silicon' computers
   - Use `ntk-vX.Y.Z-macos-intel-x86-pcap.tar.gz` for older 'Intel silicon' computers
-  - **NOTE:** Mac OS currently has a lot of bugs that need to be resolved
 - For **Linux** users:
   - If your Operating System is 'x86' and GNU based (with glibc version 2.28+) (e.g. Ubuntu 20+, Debian, RHEL 8+, Rocky 8+, Oracle Linux 8+, Fedora):
     - Consider using `ntk-vX.Y.Z-linux-gnu-x86-pcap.tar.gz` as most of these have libpcap already installed
@@ -93,8 +92,28 @@ Use **ntk-{Binary Name}-native** if your concern is portability and/or use on sy
 
 Use **ntk-{Binary Name}-pcap** if you want more accurate packet capture support (e.g. packet route timing) or all of the features to be available on Windows. The _native_ binary for Windows **does NOT** contain all the functionality of `ntk.exe`. You must [install npcap in API compatable mode on Windows](#dependencies) or live with using a subset of the functionality `ntk.exe`. This requirement is simply because Windows native socket support is nearly non-existant if you wish to directly manipulate packets.
 
-**NOTE:** I'm re-iterating this warning from [the dependencies](#dependencies) section because its important:
-The 'native' compiled versions of `ntk` may occasionally fight the operating system for reading received packet information from sockets and implies that you may need a greater understanding of the operating system's mechanisms for managing the routing of packets. This is the price of portability, unfortunately. If this is a major concern to you, use the **pcap** compiled version of the binary.
+### Linux libpcap
+
+On Ubuntu (x86), you can determine is libpcap is already installed on your system like so:
+```bash
+ls -l /usr/lib/x86_64-linux-gnu/libpcap*
+```
+
+You are looking for `/usr/lib/x86_64-linux-gnu/libpcap.so.1`. It will possibly be a symlink.  
+
+If you see `libpcap.so.1.10.4` but no `libpcap.so.1` you can symlink it:
+```bash
+sudo ln -s /usr/lib/x86_64-linux-gnu/libpcap.so.1.10.4 /usr/lib/x86_64-linux-gnu/libpcap.so.1
+```
+
+If it seems like you are still missing libpcap shared object files (.so), you can install one of these packages (running the symlink command afterward if needed):
+```bash
+sudo apt install libpcap0.8t64   # Ubuntu 24.04+
+# or
+sudo apt install libpcap0.8      # older Ubuntu / Debian
+# or
+sudo apt install libpcap-dev     # contains additional headers for compilation
+```
 
 ## Extracting and Installing the Downloaded Binary
 
@@ -159,11 +178,11 @@ chmod a+x ntk
 sudo cp ntk /usr/local/bin
 
 # Tell Mac this binary is safe to run
-sudo xattr-dr com.apple.quarantine /usr/local/bin ntk
+sudo xattr -dr com.apple.quarantine /usr/local/bin ntk
 
 # Ensure the binary is executable from the $PATH
-# Some commands (i.e. discover) will require sudo
-# If there is an equivalent to 'setcap cap_net_raw+ep' on Mac: please let me know
+# You must use sudo for the subcommands: analyze, discover, ping, scan
+# If there is an equivalent to 'setcap cap_net_raw+ep' (Linux) on Mac: please let me know
 ntk
 ```
 
@@ -463,7 +482,7 @@ Request #2 to URL: https://dns.google/
 200 - "OK"
 ```
 
-Example 1:  
+Example 2:  
 Same test, but against a URL:  
 `ntk f -n google.com`
 ```
@@ -475,17 +494,46 @@ Request #2 to URL: https://www.google.com/
 200 - "OK"
 ```
 
-Example 2:  
+Example 3:  
 Downloading a large file from the internet:  
 `ntk fetch -d https://yum.oracle.com/ISOS/OracleLinux/OL10/u1/x86_64/OracleLinux-R10-U1-x86_64-boot-uek.iso`
 ```
+Downloading file: 'OracleLinux-R10-U1-x86_64-boot-uek.iso'
 Downloading...   4.88%
 (... percentage continues to update until download completes ...)
 Downloading... 100.00%
-Finished downloading file: OracleLinux-R10-U1-x86_64-boot-uek.iso
+Finished downloading file: 'OracleLinux-R10-U1-x86_64-boot-uek.iso' (1287.81 MB)
 ```
 
-Tip: by default the `--download` flag will preserve the remote filename of the downloaded file but you could also provide the argument `--download-path` to specify a custom file path for the downloaded file.
+Example 4:  
+Downloading a specific version of `ntk` from the Github releases page:  
+`ntk f -d https://github.com/t-ambur/ntk/releases/download/v0.3.1/ntk-v0.3.1-linux-musl-x86-native.tar.gz`
+```
+Downloading file: 'ntk-v0.3.1-linux-musl-x86-native.tar.gz'
+Downloading... 100.00%   
+Finished downloading file: 'ntk-v0.3.1-linux-musl-x86-native.tar.gz' (3.96 MB)
+```
+
+Example 5:  
+Downloading a "file" (an HTML page in this case) that doesn't have a *CONTENT_LENGTH* header:  
+`ntk f -d https://google.com`
+```
+Downloading file: 'www.google.com'
+
+Finished downloading file: 'www.google.com' (0.08 MB)
+```
+
+Example 6:  
+Repeating the previous download but specifying a *download_path* argument to give the file a meaningful name:  
+`ntk f -d --download-path ./google.html https://google.com`
+```
+Downloading file: './google.html'
+
+Finished downloading file: './google.html' (0.08 MB)
+```
+
+**Tip**: By default the `--download` flag (`-d`) will preserve the remote filename of the downloaded file.  
+**Tip**: The argument `--download-path` can also be an absolute path when provided.
 
 ## Gateway
 
@@ -714,6 +762,18 @@ Trace the hops to google DNS:
 8   142.251.249.121  10.39ms
 9   142.250.224.245  10.38ms
 10  8.8.8.8          10.37ms
+```
+
+Example 3:  
+Timeout coming from a different IP than we pinged:  
+`ntk p 1.1.1.1 --packet-ttl 10`
+```
+1   162.158.61.109   *
+```
+Using either the default TTL or raising it will correctly get an Echo Reply:
+`ntk p 1.1.1.1 --packet-ttl 64`
+```
+1   1.1.1.1          10.52ms
 ```
 
 **NOTE:** The response times will be more accurate if you compile with-libpcap (or with _npcap_ on Windows).

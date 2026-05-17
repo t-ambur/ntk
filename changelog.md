@@ -2,6 +2,17 @@
 
 Each version change in `ntk` should be recorded here.
 
+## v0.3.2
+
+- Set to default TTL for the ping subcommand to '64' hops
+    - Fixes a bug with cloudflare DNS (1.1.1.1) not being pingable with default settings
+- The fetch subcommand now appropriately outputs an error if the `--download` flag gets an unsuccessful response code
+- The fetch subcommand now has the correct filename for files with the *CONTENT_DISPOSITION* header
+    - This fixes the downloaded name of `ntk` archives from the Github releases page
+- The fetch subcommand now shows the total Megabytes (MB (1024*1024 bytes)) downloaded at completion
+- The fetch subcommand no longer shows byte chunks downloaded for files without a *CONTENT_LENGTH* header
+- Fix a typo in the Mac unarchive instructions and verifed Intel x86 pcap archive works (using sudo for some commands)
+
 ## v0.3.1
 
 - Windows bugfix for the analyze subcommand printing 'pcap error: timeout expired while reading from a live capture'

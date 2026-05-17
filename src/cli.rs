@@ -3,7 +3,7 @@ use clap::{Parser, Subcommand};
 #[derive(Parser)]
 #[command(name = "ntk")]
 #[command(author = "Trevor Amburgey")]
-#[command(version = "0.3.1")]
+#[command(version)]
 #[command(about = "Network Toolkit - Cross-platform network diagnostics")]
 #[command(infer_subcommands = true)]
 #[command(infer_long_args = true)]
@@ -139,8 +139,8 @@ pub enum Commands {
         #[arg(short, long, default_value_t = 1)]
         count: u8,
 
-        /// How long the packets should live before expiring
-        #[arg(long, default_value_t = 10)]
+        /// How many router hops the packets live before expiring
+        #[arg(long, default_value_t = 64)]
         packet_ttl: u8,
 
         /// How long to wait (in seconds) for replies before exiting
