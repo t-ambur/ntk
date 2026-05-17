@@ -11,7 +11,7 @@ The `ntk` binary is many times smaller in size than all of these other comparabl
 ```
 Network Toolkit - Cross-platform network diagnostics
 By Trevor Amburgey
-v0.1.0
+vX.Y.Z
 
 Usage: ntk <COMMAND>
 
@@ -68,7 +68,6 @@ The `ntk` and `ntk.exe` binaries are compressed into descriptive archive names i
 - For **Mac OS** users:
   - Use `ntk-vX.Y.Z-macos-arm64-pcap.tar.gz` for more recent 'Apple silicon' computers
   - Use `ntk-vX.Y.Z-macos-intel-x86-pcap.tar.gz` for older 'Intel silicon' computers
-  - **NOTE:** Mac OS currently has a lot of bugs that need to be resolved
 - For **Linux** users:
   - If your Operating System is 'x86' and GNU based (with glibc version 2.28+) (e.g. Ubuntu 20+, Debian, RHEL 8+, Rocky 8+, Oracle Linux 8+, Fedora):
     - Consider using `ntk-vX.Y.Z-linux-gnu-x86-pcap.tar.gz` as most of these have libpcap already installed
@@ -179,11 +178,11 @@ chmod a+x ntk
 sudo cp ntk /usr/local/bin
 
 # Tell Mac this binary is safe to run
-sudo xattr-dr com.apple.quarantine /usr/local/bin ntk
+sudo xattr -dr com.apple.quarantine /usr/local/bin ntk
 
 # Ensure the binary is executable from the $PATH
-# Some commands (i.e. discover) will require sudo
-# If there is an equivalent to 'setcap cap_net_raw+ep' on Mac: please let me know
+# You must use sudo for the subcommands: analyze, discover, ping, scan
+# If there is an equivalent to 'setcap cap_net_raw+ep' (Linux) on Mac: please let me know
 ntk
 ```
 
@@ -483,7 +482,7 @@ Request #2 to URL: https://dns.google/
 200 - "OK"
 ```
 
-Example 1:  
+Example 2:  
 Same test, but against a URL:  
 `ntk f -n google.com`
 ```
@@ -495,17 +494,46 @@ Request #2 to URL: https://www.google.com/
 200 - "OK"
 ```
 
-Example 2:  
+Example 3:  
 Downloading a large file from the internet:  
 `ntk fetch -d https://yum.oracle.com/ISOS/OracleLinux/OL10/u1/x86_64/OracleLinux-R10-U1-x86_64-boot-uek.iso`
 ```
+Downloading file: 'OracleLinux-R10-U1-x86_64-boot-uek.iso'
 Downloading...   4.88%
 (... percentage continues to update until download completes ...)
 Downloading... 100.00%
-Finished downloading file: OracleLinux-R10-U1-x86_64-boot-uek.iso
+Finished downloading file: 'OracleLinux-R10-U1-x86_64-boot-uek.iso' (1287.81 MB)
 ```
 
-Tip: by default the `--download` flag will preserve the remote filename of the downloaded file but you could also provide the argument `--download-path` to specify a custom file path for the downloaded file.
+Example 4:  
+Downloading a specific version of `ntk` from the Github releases page:  
+`ntk f -d https://github.com/t-ambur/ntk/releases/download/v0.3.1/ntk-v0.3.1-linux-musl-x86-native.tar.gz`
+```
+Downloading file: 'ntk-v0.3.1-linux-musl-x86-native.tar.gz'
+Downloading... 100.00%   
+Finished downloading file: 'ntk-v0.3.1-linux-musl-x86-native.tar.gz' (3.96 MB)
+```
+
+Example 5:  
+Downloading a "file" (an HTML page in this case) that doesn't have a *CONTENT_LENGTH* header:  
+`ntk f -d https://google.com`
+```
+Downloading file: 'www.google.com'
+
+Finished downloading file: 'www.google.com' (0.08 MB)
+```
+
+Example 6:  
+Repeating the previous download but specifying a *download_path* argument to give the file a meaningful name:  
+`ntk f -d --download-path ./google.html https://google.com`
+```
+Downloading file: './google.html'
+
+Finished downloading file: './google.html' (0.08 MB)
+```
+
+**Tip**: By default the `--download` flag (`-d`) will preserve the remote filename of the downloaded file.  
+**Tip**: The argument `--download-path` can also be an absolute path when provided.
 
 ## Gateway
 

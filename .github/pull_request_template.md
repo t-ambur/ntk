@@ -3,7 +3,6 @@
 
 ## Checklist
 - [ ] Version bumped in `Cargo.toml`
-- [ ] Version bumped in `src/cli.rs`
 - [ ] `CHANGELOG.md` updated
 - [ ] `README.md` updated
 - [ ] Tested on Linux and Windows (provide specifics in Testing block below)

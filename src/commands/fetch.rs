@@ -191,6 +191,10 @@ pub async fn run_download(url_or_ip: &str, ignore_certs: bool, show_headers: boo
         println!();
     }
 
+    if !resp.status().is_success() {
+        return Err(NtkError::FetchResponseFailure(resp))
+    }
+
     let total_size = resp
         .headers()
         .get(CONTENT_LENGTH)
@@ -200,15 +204,36 @@ pub async fn run_download(url_or_ip: &str, ignore_certs: bool, show_headers: boo
     let fname = match download_path {
         Some(s) => { s },
         None => {
-            resp
-                .url()
-                .path_segments()
-                .and_then(|segments| segments.last())
-                .and_then(|name| if name.is_empty() { None } else { Some(name) })
-                .unwrap_or("ntk-downloaded-file")
-                .to_string()
+            // Redirects sometimes put the filename in the CONTENT_DISPOSITION header
+            // It appears in the form:
+            // "attachment; filename=ntk-v0.3.1-linux-musl-x86-native.tar.gz"
+            match resp
+                .headers()
+                .get(reqwest::header::CONTENT_DISPOSITION)
+                .and_then(|v| v.to_str().ok())
+                .and_then(|v| {
+                    v.split(';')
+                        .map(str::trim)
+                        .find(|part| part.to_lowercase().starts_with("filename="))
+                        .map(|part| part.trim_start_matches("filename=").to_string())
+                }) {
+                    // Return the extracted filename from CONTENT_DISPOSITION header when present
+                    Some(cd_name) => cd_name,
+                    // Otherwise, attept to grab it from the last 'segment' of the path
+                    None => {
+                        resp
+                            .url()
+                            .path_segments()
+                            .and_then(|segments| segments.last())
+                            .and_then(|name| if name.is_empty() { None } else { Some(name) })
+                            .unwrap_or_else(|| resp.url().host_str().unwrap_or("ntk-downloaded-file"))
+                            .to_string()
+                    }
+                }
          }
     };
+
+    println!("Downloading file: '{}'", &fname);
 
     let mut file = File::create(&fname)
         .await
@@ -227,12 +252,11 @@ pub async fn run_download(url_or_ip: &str, ignore_certs: bool, show_headers: boo
         if let Some(total) = total_size {
             let percentage = (downloaded as f64 / total as f64) * 100.0;
             print!("\rDownloading... {:>6.2}%   ", percentage);
-        } else {
-            print!("\rDownloaded {} bytes", downloaded);
         }
     }
 
-    println!("\nFinished downloading file: {}", &fname);
+    let mb = downloaded as f64 / 1_048_576.0;
+    println!("\nFinished downloading file: '{}' ({:.2} MB)", &fname, mb);
 
     Ok(())
 }
