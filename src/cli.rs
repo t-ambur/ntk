@@ -140,7 +140,7 @@ pub enum Commands {
         count: u8,
 
         /// How long the packets should live before expiring
-        #[arg(long, default_value_t = 10)]
+        #[arg(long, default_value_t = 64)]
         packet_ttl: u8,
 
         /// How long to wait (in seconds) for replies before exiting

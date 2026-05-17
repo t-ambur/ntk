@@ -93,8 +93,28 @@ Use **ntk-{Binary Name}-native** if your concern is portability and/or use on sy
 
 Use **ntk-{Binary Name}-pcap** if you want more accurate packet capture support (e.g. packet route timing) or all of the features to be available on Windows. The _native_ binary for Windows **does NOT** contain all the functionality of `ntk.exe`. You must [install npcap in API compatable mode on Windows](#dependencies) or live with using a subset of the functionality `ntk.exe`. This requirement is simply because Windows native socket support is nearly non-existant if you wish to directly manipulate packets.
 
-**NOTE:** I'm re-iterating this warning from [the dependencies](#dependencies) section because its important:
-The 'native' compiled versions of `ntk` may occasionally fight the operating system for reading received packet information from sockets and implies that you may need a greater understanding of the operating system's mechanisms for managing the routing of packets. This is the price of portability, unfortunately. If this is a major concern to you, use the **pcap** compiled version of the binary.
+### Linux libpcap
+
+On Ubuntu (x86), you can determine is libpcap is already installed on your system like so:
+```bash
+ls -l /usr/lib/x86_64-linux-gnu/libpcap*
+```
+
+You are looking for `/usr/lib/x86_64-linux-gnu/libpcap.so.1`. It will possibly be a symlink.  
+
+If you see `libpcap.so.1.10.4` but no `libpcap.so.1` you can symlink it:
+```bash
+sudo ln -s /usr/lib/x86_64-linux-gnu/libpcap.so.1.10.4 /usr/lib/x86_64-linux-gnu/libpcap.so.1
+```
+
+If it seems like you are still missing libpcap shared object files (.so), you can install one of these packages (running the symlink command afterward if needed):
+```bash
+sudo apt install libpcap0.8t64   # Ubuntu 24.04+
+# or
+sudo apt install libpcap0.8      # older Ubuntu / Debian
+# or
+sudo apt install libpcap-dev     # contains additional headers for compilation
+```
 
 ## Extracting and Installing the Downloaded Binary
 
@@ -714,6 +734,18 @@ Trace the hops to google DNS:
 8   142.251.249.121  10.39ms
 9   142.250.224.245  10.38ms
 10  8.8.8.8          10.37ms
+```
+
+Example 3:  
+Timeout coming from a different IP than we pinged:  
+`ntk p 1.1.1.1 --packet-ttl 10`
+```
+1   162.158.61.109   *
+```
+Using either the default TTL or raising it will correctly get an Echo Reply:
+`ntk p 1.1.1.1 --packet-ttl 64`
+```
+1   1.1.1.1          10.52ms
 ```
 
 **NOTE:** The response times will be more accurate if you compile with-libpcap (or with _npcap_ on Windows).
