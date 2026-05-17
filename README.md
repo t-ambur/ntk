@@ -776,7 +776,25 @@ Using either the default TTL or raising it will correctly get an Echo Reply:
 1   1.1.1.1          10.52ms
 ```
 
+Example 4:  
+Traceroute showing a hop that didn't report:  
+`ntk p 1.1.1.1 -t`
+```
+1   10.0.0.1         15.25ms
+2   10.27.13.195     15.56ms
+3   68.85.152.81     15.55ms
+4   69.139.192.221   15.58ms
+5   68.86.211.113    15.60ms
+6   68.85.159.161    17.43ms
+7   96.110.42.49     19.10ms
+8   96.110.33.242    19.33ms
+9   *
+10  162.158.61.109   20.14ms
+11  1.1.1.1          20.92ms
+```
+
 **NOTE:** The response times will be more accurate if you compile with-libpcap (or with _npcap_ on Windows).
+**NOTE:** The response times for each hop are less accurate with `-t` due to the current implementation in code.
 
 ## Scan
 
@@ -953,4 +971,6 @@ cargo build -r -F with-libpcap
 
 # Known Issues
 
-Please see the [TODO.md](https://github.com/t-ambur/ntk/blob/main/TODO.md) file for a tracker of all known bugs, issues, and planned features to `ntk`. If you encounter an issue that is not already in [TODO.md](https://github.com/t-ambur/ntk/blob/main/TODO.md) please [open an GitHub issue](https://github.com/t-ambur/ntk/issues) in this repository.
+Please [open an GitHub issue](https://github.com/t-ambur/ntk/issues) in this repository for all found bugs.
+
+Please review the [TODO.md](https://github.com/t-ambur/ntk/blob/main/TODO.md) file for a tracker of already planned features to `ntk`. Please only submit new features to the GitHub issues page that aren't recorded in that file.
