@@ -108,7 +108,7 @@ pub async fn run(input_str: &str, web_lookup_mac: bool, ignore_certs: bool, http
         }
 
         println!("\nTracing route to: '{}' ...", &ip_str);
-        if let Err(e) = commands::ping::run_traceroute(&ip_str, 10, 10).await {
+        if let Err(e) = commands::ping::run_traceroute(&ip_str, 10, 10, true).await {
             eprintln!("Failed to traceroute: {e}");
         }
     }
@@ -161,7 +161,7 @@ pub async fn run(input_str: &str, web_lookup_mac: bool, ignore_certs: bool, http
 
     println!("Performing DNS lookup of: '{}'...", &ip_str);
     
-    match commands::lookup::run_lookup_addr(target_ip).await {
+    match commands::lookup::run_lookup_addr(target_ip, true).await {
         Ok(_) => {}
         Err(e) => { eprintln!("Failed to perform DNS lookup: {e}"); }
     }

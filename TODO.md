@@ -12,8 +12,6 @@ This is a mental notebook of possible TODOs on this project.
 - Ping -> wait for response -> ping again (similar to expected behavior)
 - Ping out of a specific interface (i.e. ping -i eth0)
 - Set IP Addresses?
-- Banner search/grab? e.g. ssh, http, telnet, ftp
-- Lookup hostname for traceroute hops
 - Command similar to tcpdump
 - Further optimize the response times of `ntk ping -t x.x.x.x`
 
@@ -30,3 +28,4 @@ This is a mental notebook of possible TODOs on this project.
 - Unit tests maybe
 - Look into adding to package managers: apt, dnf/yum, Alpine, brew, choco, snap, etc.
 - Consider crates.io release
+- Consider making trace a standalone subcommand
