@@ -2,6 +2,12 @@
 
 Each version change in `ntk` should be recorded here.
 
+## v0.4.0
+
+- Adds the `banner` subcommand to scrape a remote host for all available banners
+- Stop scanning loopback interface on Mac and BSD variants (lo0)
+- Add flag to DNS lookup trace hop IP addresses
+
 ## v0.3.2
 
 - Set to default TTL for the ping subcommand to '64' hops
@@ -12,7 +18,7 @@ Each version change in `ntk` should be recorded here.
 - The fetch subcommand now shows the total Megabytes (MB (1024*1024 bytes)) downloaded at completion
 - The fetch subcommand no longer shows byte chunks downloaded for files without a *CONTENT_LENGTH* header
 - Fix a typo in the Mac unarchive instructions and verifed Intel x86 pcap archive works (using sudo for some commands)
-- Bugfix traceroute so it continues to run after a single hop prints TTL exceeded (*)
+- Bugfix trace so it continues to run after a single hop prints TTL exceeded (*)
 
 ## v0.3.1
 

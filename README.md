@@ -17,6 +17,7 @@ Usage: ntk <COMMAND>
 
 Commands:
   analyze     Perform a check of layers 1-4 and 7 for a given IP or hostname by running most of the commands in ntk
+  banner      Establish TCP connections to a remote host in order scrape it for banner responses
   discover    Discover IP and MAC addresses adjacent to this machine using ARP
   fetch       Perform an HTTP GET on the provided URL or IP Address
   gateway     Displays the default network interface and gateway on this device
@@ -376,6 +377,51 @@ Performing HTTP fetch --no-content redirect test against 'https://10.0.0.1' ...
 
 Request #1 to URL: https://10.0.0.1
 Failed to peform HTTP GET request (is port 443 open?): Failed to send HTTP request using (reqwest) client: error sending request for url (https://10.0.0.1/)
+```
+
+## Banner
+
+The `ntk banner` subcommand is used to scrape 'banners' from a remote host. It does so by attempting a TCP connection to the specified remote IP 'x' for an internal common list of ports that could return banners. For HTTP/HTTPS a 'HEAD probe' is sent to invoke the server to send a response.
+
+`ntk banner -h`
+```
+Establish TCP connections to a remote host in order scrape it for banner responses
+
+Usage: ntk banner <IP>
+
+Arguments:
+  <IP>  The IP of the remote host
+
+Options:
+  -h, --help  Print help
+```
+
+### Examples
+
+Example 1:  
+Searching my home router:  
+`ntk b 10.0.0.1`
+```
+21   : No banner found.
+22   : No banner found.
+23   : No banner found.
+25   : No banner found.
+80   : HTTP/1.0 200 OK
+Content-type: text/html
+X-robots-tag: noindex,nofollow
+X-Frame-Options: deny
+X-XSS-Protection: 1; mode=block
+X-Content-Type-Options: nosniff
+Strict-Transport-Security: max-age=15768000; includeSubdomains
+Pragma: no-cache
+Cache-Control: no-store, no-cache, must-revalidate
+Content-Security-Policy: default-src 'self' ; style-src 'self' ; frame-src 'self' ; font-src 'self' ; form-action 'self' ; script-src 'self' 'unsafe-inline' 'unsafe-eval'; img-src 'self'; connect-src 'self'; object-src 'none'; media-src 'none'; script-nonce 'none'; plugin-types 'none'; reflected-xss 'none'; report-uri 'none';
+Content-Length: 8340
+Connection: close
+Date: Mon, 12 Jan 1970 08:41:25 GMT
+Server: Xfinity Broadband Router Server
+443  : No banner found.
+8080 : No banner found.
 ```
 
 ## Discover

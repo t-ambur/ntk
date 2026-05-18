@@ -26,7 +26,7 @@ pub struct Cli {
 pub enum Commands {
     /// Perform a check of layers 1-4 and 7 for a given IP or hostname by running most of the commands in ntk
     Analyze {
-        /// The IP 
+        /// The IP of the remote host
         ip: String,
 
         /// When true will lookup/query the MAC address vendor online
@@ -40,6 +40,11 @@ pub enum Commands {
         /// Use HTTP instead of HTTPS when running L7 fetch analysis
         #[arg(short, long, default_value_t = false)]
         use_http: bool,
+    },
+    /// Establish TCP connections to a remote host in order scrape it for banner responses
+    Banner {
+        /// The IP of the remote host
+        ip: String,
     },
     /// Discover IP and MAC addresses adjacent to this machine using ARP
     Discover {
@@ -146,6 +151,10 @@ pub enum Commands {
         /// How long to wait (in seconds) for replies before exiting
         #[arg(long, default_value_t = 10)]
         timeout: u8,
+
+        /// (trace only) Attempt a DNS lookup of each IP discovered along the route
+        #[arg(short, long)]
+        lookup_trace_hostnames: bool,
     },
     /// Reveal open ports on a provided IP by attempting connections to them
     Scan {

@@ -46,6 +46,19 @@ fn randomize_port_scan() -> [u16; 1000] {
     return common_ports;
 }
 
+/// The ports to connect to for the banner subcommand
+pub fn banner_ports() -> [u16; 7] {
+    [
+        21,   // FTP
+        22,   // SSH 
+        23,   // Telnet
+        25,   // SMTP
+        80,   // HTTP
+        443,  // HTTPS
+        8080, // HTTP
+    ]
+}
+
 /// Creates a static hashmap mapping common port numbers to their usual process name
 pub fn port_map() -> &'static HashMap<u16, &'static str> {
     static MAP: OnceLock<HashMap<u16, &'static str>> = OnceLock::new();

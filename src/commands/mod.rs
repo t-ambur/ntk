@@ -1,4 +1,5 @@
 pub mod analyze;
+pub mod banner;
 pub mod fetch;
 pub mod gateway;
 pub mod interface;

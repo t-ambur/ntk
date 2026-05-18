@@ -27,6 +27,9 @@ async fn run() -> Result<(), NtkError> {
         Commands::Analyze { ip, web_lookup_mac , ignore_certs, use_http} => {
             commands::analyze::run(&ip, web_lookup_mac, ignore_certs, use_http).await?
         },
+        Commands::Banner { ip } => {
+            commands::banner::run(util::str_to_ip(&ip)).await?
+        }
         Commands::Discover { interface , collection_time} => {
             #[cfg(all(not(unix), not(feature = "with-libpcap")))]
             {
@@ -50,22 +53,22 @@ async fn run() -> Result<(), NtkError> {
         },
         Commands::Lookup { ip , name_lookup} => {
             if name_lookup {
-                commands::lookup::run_lookup_host(&ip).await?;
+                commands::lookup::run_lookup_host(&ip, true).await?;
             } else {
-                commands::lookup::run_lookup_addr(util::str_to_ip(&ip)).await?;
+                commands::lookup::run_lookup_addr(util::str_to_ip(&ip), true).await?;
             }
         },
         Commands::MacVendor { address, ignore_certs } => {
             commands::fetch::run_get_mac_vendor(&address, ignore_certs).await?
         },
-        Commands::Ping {ip, trace, count, packet_ttl, timeout} => {
+        Commands::Ping {ip, trace, count, packet_ttl, timeout, lookup_trace_hostnames} => {
             #[cfg(all(not(unix), not(feature = "with-libpcap")))]
             {
                 return Err(NtkError::WrongBinaryInUse(String::from("The Ping command requires a 'libpcap' equivalent when not ran on a Unix host (e.g. Npcap on Windows). Please install the dependency and use the appropriate ntk binary.")));
             }
             #[cfg(any(unix, feature = "with-libpcap"))]
             if trace {
-                commands::ping::run_traceroute(&ip, timeout, packet_ttl).await?
+                commands::ping::run_traceroute(&ip, timeout, packet_ttl, lookup_trace_hostnames).await?
             } else {
                 commands::ping::run_ping(&ip, timeout, count, packet_ttl).await?
             }

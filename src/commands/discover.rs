@@ -64,8 +64,13 @@ pub async fn run(interface_name: Option<String>, collection_time: u64) -> Result
         None => {
             println!("Scanning all interfaces because --interface was not provided");
             let interfaces = datalink::interfaces();
+            
             for interface in interfaces {
-                if interface.name.to_lowercase().eq("lo") || interface.name.to_lowercase().starts_with("loopback") {
+                let lc_interface_name = interface.name.to_lowercase();
+                if lc_interface_name.eq("lo") || 
+                    lc_interface_name.eq("lo0") ||
+                    lc_interface_name.starts_with("loopback")
+                {
                     println!("Skipping loopback interface: {}", interface.name);
                     continue;
                 }

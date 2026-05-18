@@ -1,4 +1,5 @@
 
+use crate::commands::lookup;
 use crate::error::NtkError;
 use crate::util;
 
@@ -223,6 +224,21 @@ async fn setup_rx_traceroute(
     Ok(Some(handle))
 }
 
+/// Handles the table-like printing of the traceroute output
+async fn traceroute_print_helper(lookup_hostname: bool, address: IpAddr, next_ttl: u8, elapsed: Duration) {
+    if lookup_hostname {
+        let hostname = match address {
+            IpAddr::V4(v4) => lookup::run_lookup_addr(v4, false).await.unwrap_or(String::new()),
+            _ => String::new(),
+        };
+        println!("{:<ttl_w$} {:<ip_w$} {:.2?} {}", next_ttl, address, elapsed, hostname,
+                ttl_w = 3, ip_w = 16);
+    } else {
+        println!("{:<ttl_w$} {:<ip_w$} {:.2?}", next_ttl, address, elapsed,
+                ttl_w = 3, ip_w = 16);
+    }
+}
+
 /// Drains the capture thread created after all (traceroute) 'pings' have been sent
 #[cfg(feature = "with-libpcap")]
 async fn rx_tr_packets(
@@ -230,6 +246,7 @@ async fn rx_tr_packets(
     hops: Vec<(u8, Duration)>,
     timeout_seconds: u64,
     target_ip: Ipv4Addr,
+    lookup_hostname: bool,
 ) -> Result<(), NtkError> {
     let RxHandle { handle, mut rx_pcap } = thread_handle
         .ok_or(NtkError::UnexpectedHandle)?;
@@ -251,8 +268,7 @@ async fn rx_tr_packets(
 
                     while let Some((a, s, fin, rt)) = stash.remove(&next_ttl) {
                         let elapsed = rt - s;
-                        println!("{:<ttl_w$} {:<ip_w$} {:.2?}", next_ttl, a, elapsed,
-                                 ttl_w = 3, ip_w = 16);
+                        traceroute_print_helper(lookup_hostname, a, next_ttl, elapsed).await;
                         next_ttl += 1;
                         if fin { drop(handle); return Ok(()); }
                     }
@@ -271,8 +287,7 @@ async fn rx_tr_packets(
     while next_ttl <= count as u8 {
         if let Some((a, s, fin, rt)) = stash.remove(&next_ttl) {
             let elapsed = rt - s;
-            println!("{:<ttl_w$} {:<ip_w$} {:.2?}", next_ttl, a, elapsed,
-                    ttl_w = 3, ip_w = 16);
+            traceroute_print_helper(lookup_hostname, a, next_ttl, elapsed).await;
             if fin { drop(handle); return Ok(()); }
         } else {
             println!("{:<ttl_w$} *", next_ttl, ttl_w = 3);
@@ -349,7 +364,8 @@ async fn rx_tr_packets(
     rx: &mut TransportReceiver,
     hops: Vec<(u8, Duration)>,
     timeout_seconds: u64,
-    target_ip: IpAddr
+    target_ip: IpAddr,
+    lookup_hostname: bool,
 ) -> Result<(), NtkError> {
     let mut iter = icmp_packet_iter(rx);
     let count = hops.len();
@@ -394,8 +410,7 @@ async fn rx_tr_packets(
                         // Attempt to drain the map starting from the first sequence number
                         while let Some((a, s, fin, stashed_arrival)) = stash.remove(&next_ttl) {
                             let elapsed = stashed_arrival - s;
-                            println!("{:<ttl_w$} {:<ip_w$} {:.2?}", next_ttl, a, elapsed,
-                                     ttl_w = 3, ip_w = 16);
+                            traceroute_print_helper(lookup_hostname, a, next_ttl, elapsed).await;
                             next_ttl += 1;
                             if fin { return Ok(()); }
                         }
@@ -414,8 +429,7 @@ async fn rx_tr_packets(
     while next_ttl <= count as u8 {
         if let Some((a, s, fin, stashed_arrival)) = stash.remove(&next_ttl) {
             let elapsed = stashed_arrival - s;
-            println!("{:<ttl_w$} {:<ip_w$} {:.2?}", next_ttl, a, elapsed,
-                    ttl_w = 3, ip_w = 16);
+            traceroute_print_helper(lookup_hostname, a, next_ttl, elapsed).await;
             if fin { return Ok(()); }
         } else {
             println!("{:<ttl_w$} *", next_ttl, ttl_w = 3);
@@ -498,7 +512,7 @@ pub async fn run_ping(ip_str: &str, timeout_seconds: u8, count: u8, packet_ttl: 
 }
 
 /// Runs a traceroute either with-libpcap or without
-pub async fn run_traceroute(ip_str: &str, timeout_seconds: u8, packet_ttl: u8) -> Result<(), NtkError> {
+pub async fn run_traceroute(ip_str: &str, timeout_seconds: u8, packet_ttl: u8, lookup_hostname: bool) -> Result<(), NtkError> {
     // Setup the tx and rx channels
     let ip = util::str_or_hostname_to_ipv4(ip_str).await;
     let protocol = Layer4(Ipv4(IpNextHeaderProtocols::Icmp));
@@ -525,12 +539,12 @@ pub async fn run_traceroute(ip_str: &str, timeout_seconds: u8, packet_ttl: u8) -
 
     #[cfg(not(feature = "with-libpcap"))]
     {
-        rx_tr_packets(&mut rx, hops, timeout_seconds as u64, ip.into()).await?
+        rx_tr_packets(&mut rx, hops, timeout_seconds as u64, ip.into(), lookup_hostname).await?
     }
 
     #[cfg(feature = "with-libpcap")]
     {
-        rx_tr_packets(handle, hops, timeout_seconds as u64, ip).await?
+        rx_tr_packets(handle, hops, timeout_seconds as u64, ip, lookup_hostname).await?
     }
     Ok(())
 }
