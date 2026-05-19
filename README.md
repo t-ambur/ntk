@@ -57,7 +57,29 @@ The with-libpcap compiled versions of `ntk` use different packet transmit and ca
 
 # Downloading Pre-Built Binaries
 
-You can download pre-built binaries of `ntk` and `ntk.exe` on the [releases page here on GitHub](https://github.com/t-ambur/ntk/releases). These binaries are built via workflows attached to this repository. Please use the latest version that is available. All of the releases for each version are compressed with the target operating system and the feature set used (either **native** or **pcap**).
+You can download pre-built binaries of `ntk` and `ntk.exe` on the [releases page here on GitHub](https://github.com/t-ambur/ntk/releases). These binaries are built via workflows attached to this repository. Simply left-click the name of the archive you wish to download. Please use the latest version that is available. All of the releases for each version are compressed with the target operating system and the feature set used (either **native** or **pcap**).
+
+## Using wget
+
+You can also download `ntk` from your terminal. To download a release archive using wget (linux):
+```bash
+# Subsitute the version tags and archive names with the desired one
+wget https://github.com/t-ambur/ntk/releases/download/v0.4.0/ntk-v0.4.0-linux-gnu-x86-pcap.tar.gz
+```
+
+If you want to find the latest releases, you can run (linux):
+```bash
+curl -s https://api.github.com/repos/t-ambur/ntk/releases/latest | grep browser_download_url
+  # "browser_download_url": "https://github.com/t-ambur/ntk/releases/download/v0.4.0/ntk-v0.4.0-linux-gnu-x86-pcap.tar.gz"
+  # "browser_download_url": "https://github.com/t-ambur/ntk/releases/download/v0.4.0/ntk-v0.4.0-linux-musl-arm64-native.tar.gz"
+  # "browser_download_url": "https://github.com/t-ambur/ntk/releases/download/v0.4.0/ntk-v0.4.0-linux-musl-x86-native.tar.gz"
+  # "browser_download_url": "https://github.com/t-ambur/ntk/releases/download/v0.4.0/ntk-v0.4.0-macos-arm64-pcap.tar.gz"
+  # "browser_download_url": "https://github.com/t-ambur/ntk/releases/download/v0.4.0/ntk-v0.4.0-macos-intel-x86-pcap.tar.gz"
+  # "browser_download_url": "https://github.com/t-ambur/ntk/releases/download/v0.4.0/ntk-v0.4.0-windows-x86-native.zip"
+  # "browser_download_url": "https://github.com/t-ambur/ntk/releases/download/v0.4.0/ntk-v0.4.0-windows-x86-pcap.zip"
+```
+
+The `wget` binary is recommended over `curl` for downloading simply because I've observed `curl` failing to download any bytes for the archive.
 
 ## Which Binary is for my Operating System
 

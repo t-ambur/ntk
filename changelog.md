@@ -2,6 +2,12 @@
 
 Each version change in `ntk` should be recorded here.
 
+## v0.5.0
+
+- Adds 'view' subcommand similar to how tcpdump works
+- Adds 'out' subcommand for POST / PUT / PATCH / DELETE with JSON bodies
+- New output messages when the 'banner' subcommand fails to connect to a TCP port 
+
 ## v0.4.0
 
 - Adds the `banner` subcommand to scrape a remote host for all available banners

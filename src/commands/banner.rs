@@ -8,7 +8,11 @@ use tokio::time::timeout;
 use std::time::{Duration};
 use std::net::{Ipv4Addr};
 
-async fn connect_for_banner(ip: &str, port: u16) -> Option<String> {
+/// Attempts a TCP connection to the specified IP and port number
+/// Will send a probe if required to invoke a pull of the remote banner
+/// Returns Some(stdout_message, banner_searched_bool) for errors and the banner itself
+/// Returns None if the search completed and no banner was found
+async fn connect_for_banner(ip: &str, port: u16) -> Option<(String, bool)> {
     // Combine the IP and port into a socket address string
     let address = format!("{}:{}", ip, port);
 
@@ -17,14 +21,14 @@ async fn connect_for_banner(ip: &str, port: u16) -> Option<String> {
         .await
     {
         Ok(Ok(s)) => s, // One Ok for timeout and another for TcpStream::connect to unwrap the stream
-        _ => return None,
+        _ => return Some( (String::from("Failed to connect."), false) ),
     };
 
     // HTTP / HTTPS requires a 'probe' to invoke a banner response (pull based protocol)
     match port {
         80 | 443 | 8080 => {
             if stream.write_all(b"HEAD / HTTP/1.0\r\n\r\n").await.is_err() {
-                return None
+                return Some( (String::from("Connection established but writing probe failed."), false) )
             }
         }
         _ => {}
@@ -34,7 +38,7 @@ async fn connect_for_banner(ip: &str, port: u16) -> Option<String> {
     let mut buf = vec![0u8; 1024];
     match timeout(Duration::from_secs(5), stream.read(&mut buf)).await {
         Ok(Ok(n)) if n > 0 => {
-            Some(String::from_utf8_lossy(&buf[..n]).trim().to_string())
+            Some( (String::from_utf8_lossy(&buf[..n]).trim().to_string(), true) )
         }
         _ => None,
     }
@@ -43,8 +47,8 @@ async fn connect_for_banner(ip: &str, port: u16) -> Option<String> {
 pub async fn run(target_ip: Ipv4Addr) -> Result<(), NtkError> {
     for port in banner_ports() {
         match connect_for_banner(&target_ip.to_string(), port).await {
-            Some(banner_string) => {
-                println!("{:<port_w$}: '{}'", port, banner_string, port_w = 5);
+            Some( (stdout_msg, _banner_searched_bool) ) => {
+                println!("{:<port_w$}: '{}'", port, stdout_msg, port_w = 5);
             }
             None => {
                 println!("{:<port_w$}: No banner found.", port, port_w = 5);

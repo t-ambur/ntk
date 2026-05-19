@@ -134,7 +134,7 @@ pub fn parse_tcp_reply(data: &[u8]) -> Option<(u16, u8)> {
     Some((tcp.get_source(), tcp.get_flags()))
 }
 
-/// Gets the 'device' (interface) from which to capture packet responses on
+/// Gets the 'device' (interface) from which to capture packet responses on (by IPv4)
 #[cfg(feature = "with-libpcap")]
 pub fn find_pcap_device(source_ip: Ipv4Addr) -> Result<Device, NtkError> {
     let devices = Device::list()
@@ -149,6 +149,16 @@ pub fn find_pcap_device(source_ip: Ipv4Addr) -> Result<Device, NtkError> {
         }
     }
     return Err(NtkError::IpIfAssociationError(source_ip.to_string()));
+}
+
+/// Gets the 'device' (interface) from which to capture packet responses on (by name)
+#[cfg(feature = "with-libpcap")]
+pub fn find_pcap_device_by_name(interface_name: &str) -> Result<Device, NtkError> {
+    Device::list()
+        .map_err(NtkError::LibPacketCaptureFailure)?
+        .into_iter()
+        .find(|device| device.name == interface_name)
+        .ok_or_else(|| NtkError::IfNameNotFound(String::from(interface_name)))
 }
 
 /// The parsed result of an inbound ICMP packet, covering both ping and traceroute use cases.
