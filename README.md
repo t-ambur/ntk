@@ -33,6 +33,38 @@ Options:
   -V, --version  Print version
 ```
 
+## Table of Contents
+
+- [Disclaimer](#disclaimer)
+- [WSL](#windows-system-for-linux)
+- [Dependencies](#dependencies)
+- [Downloading ntk](#downloading-pre-built-binaries)
+  - [Which Binary Do I Choose?](#which-binary-is-for-my-operating-system)
+  - [Native or Pcap?](#should-i-use-native-or-pcap)
+    - [Do I have libpcap on Linux?](#linux-libpcap)
+  - [Binary Installation](#extracting-and-installing-the-downloaded-binary)
+- [Executing ntk](#executing-ntk)
+  - [Subcommand inference](#subcommand-inference)
+  - [Help menus](#help-menu)
+  - [Analyze](#analyze)
+  - [Banner](#banner)
+  - [Discover](#discover)
+  - [Fetch](#fetch)
+  - [Gateway](#gateway)
+  - [Interface](#interface)
+  - [Lookup](#lookup)
+  - [Mac Vendor](#mac-vendor)
+  - [Out](#out)
+  - [Ping](#ping)
+  - [Scan](#scan)
+  - [View](#view)
+- [Compiling From Source](#compiling)
+  - [Cross Compilation Checks](#cross-compilation-checks)
+  - [Compiling on Ubuntu](#compiling-on-ubuntu)
+  - [Compiling on Windows](#compiling-on-windows)
+  - [Compiling on Other](#compiling-on-other-operating-systems)
+- [Known Issues](#known-issues)
+
 # Disclaimer
 
 Network ToolKit is not intended to replace any individual binary on either Unix nor Windows. Network ToolKit's goal is to provide the absolute basic, must-need functionality to someone who needs to troubleshoot or perform network discovery tasks. I assume no liability for any potential malfunction or damage to networking devices you interact with as a result of executing `ntk` (including both the sending and receiving device(s)).
@@ -782,6 +814,10 @@ Vantiva USA LLC
 
 The command `ntk mac-vendor e4:bf:fa:aa:aa:aa` would have the same output, but you should [use the built in inference!](#subcommand-inference). Notice the last three octets of the 'full MAC Address' are nonsense here: the subcommand only cares about the [OUI](https://en.wikipedia.org/wiki/Organizationally_unique_identifier) (which is the first three octets).
 
+## Out
+
+TODO - Not Yet Implemented
+
 ## Ping
 
 The `ntk ping x` subcommand sends out one (or more) ICMP packet(s) (EchoRequest) to a remote IP in order to determine layer 3 connectivity to a device. Currently this command transmits all packets in a single batch instead of waiting for a response before sending subsequent pings (when `--count` is greater than 1). The machine that is 'pinged' should respond with a 'reply' that indicates the ping was received. The trasmitting machine will then print how long it took for the packet 'reply' to be received from the original sent time.
@@ -929,6 +965,69 @@ RST: 3527
 RST: 1277
 RST: 2000
 ... and ~990 more responses from the router
+```
+
+## View
+
+The `ntk view x` subcommand is used to monitor all IPv4 and ARP packets that come into contact with a specific interface 'x'. Its functionality is similar to the well known binary _tcpdump_ on Unix systems.
+
+`ntk view -h`
+```
+Opens a promiscious mode viewer to monitor for all IPv4 and ARP traffic on a specific interface
+
+Usage: ntk view <INTERFACE>
+
+Arguments:
+  <INTERFACE>  The name of the interface to monitor packets on
+
+Options:
+  -h, --help  Print help
+```
+
+### Examples
+
+Example 1:  
+A capture from WSL2 Ubuntu on Windows:  
+`ntk view eth1`
+```
+Listening on 'eth1' ...
+12:03:53.092|  IGMP Membership Report v3    10.0.0.151            => 224.0.0.22            len: 40  group=0.0.0.1
+12:03:53.092|  IGMP Membership Report v3    10.0.0.151            => 224.0.0.22            len: 40  group=0.0.0.1
+...
+12:04:11.524|  ICMP Echo Request            10.0.0.237            => 10.0.0.1              len: 84  id=29812 seq=1
+12:04:11.524|  ICMP Echo Reply              10.0.0.1              => 10.0.0.237            len: 84  id=29812 seq=1
+12:04:12.548|  ICMP Echo Request            10.0.0.237            => 10.0.0.1              len: 84  id=29812 seq=2
+12:04:12.548|  ICMP Echo Reply              10.0.0.1              => 10.0.0.237            len: 84  id=29812 seq=2
+...
+12:05:05.796|  TCP  SYN                     10.0.0.237:44547      => 10.0.0.1:21           len: 60  
+12:05:05.796|  TCP  ACK+RST                 10.0.0.1:21           => 10.0.0.237:44547      len: 40  
+12:05:05.796|  TCP  SYN                     10.0.0.237:44299      => 10.0.0.1:22           len: 60  
+12:05:15.012|  TCP  SYN                     10.0.0.237:44421      => 10.0.0.1:23           len: 60  
+12:05:16.036|  TCP  SYN                     10.0.0.237:41243      => 10.0.0.1:25           len: 60  
+12:05:16.036|  TCP  ACK+RST                 10.0.0.1:25           => 10.0.0.237:41243      len: 40  
+12:05:16.036|  TCP  SYN                     10.0.0.237:41153      => 10.0.0.1:80           len: 60  
+12:05:16.036|  TCP  SYN+ACK                 10.0.0.1:80           => 10.0.0.237:41153      len: 60  
+12:05:16.036|  TCP  ACK                     10.0.0.237:41153      => 10.0.0.1:80           len: 52  
+12:05:16.036|  TCP  ACK+PSH                 10.0.0.237:41153      => 10.0.0.1:80           len: 71  
+12:05:16.036|  TCP  ACK                     10.0.0.1:80           => 10.0.0.237:41153      len: 52  
+12:05:16.036|  TCP  ACK+PSH                 10.0.0.1:80           => 10.0.0.237:41153      len: 799  
+12:05:16.036|  TCP  ACK+FIN                 10.0.0.1:80           => 10.0.0.237:41153      len: 52  
+12:05:16.037|  TCP  ACK                     10.0.0.237:41153      => 10.0.0.1:80           len: 52  
+12:05:16.037|  TCP  ACK+FIN                 10.0.0.237:41153      => 10.0.0.1:80           len: 52  
+12:05:16.037|  TCP  SYN                     10.0.0.237:43523      => 10.0.0.1:443          len: 60  
+12:05:16.037|  TCP  ACK                     10.0.0.1:80           => 10.0.0.237:41153      len: 52  
+12:05:16.037|  TCP  SYN+ACK                 10.0.0.1:443          => 10.0.0.237:43523      len: 60  
+12:05:16.037|  TCP  ACK                     10.0.0.237:43523      => 10.0.0.1:443          len: 52  
+12:05:16.037|  TCP  ACK+PSH                 10.0.0.237:43523      => 10.0.0.1:443          len: 71  
+12:05:16.037|  TCP  ACK                     10.0.0.1:443          => 10.0.0.237:43523      len: 52  
+12:05:16.037|  TCP  ACK+FIN                 10.0.0.1:443          => 10.0.0.237:43523      len: 52  
+12:05:16.037|  TCP  ACK+FIN                 10.0.0.237:43523      => 10.0.0.1:443          len: 52  
+...
+12:05:51.876|  UDP                          10.0.0.237:43413      => 185.125.190.57:123    len: 76  
+12:05:51.876|  UDP                          185.125.190.57:123    => 10.0.0.237:43413      len: 76  
+...
+12:07:05.511|  ARP  Request                 10.0.0.237            => 10.0.0.151            MAC: aa:aa:aa:aa:aa:aa => 00:00:00:00:00:00
+12:07:05.512|  ARP  Reply                   10.0.0.151            => 10.0.0.237            MAC: bb:bb:bb:bb:bb:bb => aa:aa:aa:aa:aa:aa
 ```
 
 # Compiling

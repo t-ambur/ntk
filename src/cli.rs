@@ -200,5 +200,10 @@ pub enum Commands {
         /// When provided: use this port as the source for the SYN probe instead of a random one
         #[arg(long)]
         source_port: Option<u16>
-    }    
+    },
+    /// Opens a promiscious mode viewer to monitor for all IPv4 and ARP traffic on a specific interface
+    View {
+        /// The name of the interface to monitor packets on
+        interface: String
+    }
 }

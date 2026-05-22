@@ -90,6 +90,9 @@ async fn run() -> Result<(), NtkError> {
                     }
                 }
             }
+        },
+        Commands::View { interface } => {
+            commands::view::run(&interface).await?;
         }
     }
     
