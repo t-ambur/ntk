@@ -1,8 +1,13 @@
 use crate::error::NtkError;
+
+#[cfg(feature = "with-libpcap")]
 use crate::util;
 
 #[cfg(feature = "with-libpcap")]
-use pcap::{Capture, Device};
+use pcap::{Capture};
+
+#[cfg(not(feature = "with-libpcap"))]
+use pnet::datalink::{self, Channel::Ethernet};
 
 use std::net::Ipv4Addr;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -322,8 +327,35 @@ pub async fn run(interface_name: &str) -> Result<(), NtkError> {
     }
 }
 
-#[cfg(not(feature = "with-libpcap"))]
+#[cfg(all(unix, not(feature = "with-libpcap")))]
 pub async fn run(interface_name: &str) -> Result<(), NtkError> {
-    println!("NOT IMPLEMENTED");
-    Ok(())
+    let interfaces = datalink::interfaces();
+    let iface = interfaces
+        .into_iter()
+        .find(|i| i.name == interface_name)
+        .ok_or_else(|| NtkError::IfNameNotFound(interface_name.to_string()))?;
+
+    let (_, mut rx) = match datalink::channel(&iface, Default::default()) {
+        Ok(Ethernet(tx, rx)) => (tx, rx),
+        Ok(_) => return Err(NtkError::DatalinkUnsupportedChannel),
+        Err(e) => return Err(NtkError::DatalinkOpenFailure(e)),
+    };
+
+    println!("Listening on '{}' ...", interface_name);
+
+    loop {
+        match rx.next() {
+            Ok(frame) => {
+                if frame.len() < 14 { continue; }
+                let ethertype = u16::from_be_bytes([frame[12], frame[13]]);
+                let payload = &frame[14..];
+                match ethertype {
+                    0x0800 => { if let Some(pkt) = parse_ipv4(payload) { pkt.println(); } }
+                    0x0806 => { if let Some(arp) = parse_arp(payload)  { arp.println(); } }
+                    _ => {}
+                }
+            }
+            Err(e) => return Err(NtkError::DatalinkOpenFailure(e)),
+        }
+    }
 }

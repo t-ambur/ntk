@@ -92,7 +92,14 @@ async fn run() -> Result<(), NtkError> {
             }
         },
         Commands::View { interface } => {
-            commands::view::run(&interface).await?;
+            #[cfg(all(not(unix), not(feature = "with-libpcap")))]
+            {
+                return Err(NtkError::WrongBinaryInUse(String::from("The view subcommand requires a 'libpcap' equivalent when not ran on a Unix host (e.g. Npcap on Windows). Please install the dependency and use the appropriate ntk binary.")));
+            }
+            #[cfg(any(unix, feature = "with-libpcap"))]
+            {
+                commands::view::run(&interface).await?;
+            }
         }
     }
     
