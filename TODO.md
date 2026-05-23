@@ -15,9 +15,12 @@ This is a mental notebook of possible TODOs on this project.
 - MSI installer (Include npcap?)
 - ARP discovery sometimes seems less than expected on Windows over WiFi interface
 - Resolve remaining unused warnings in compiler (no feature build)
+- GUID should be quoted in place like the 'i' command for easy copy+paste
 
 ## General / Misc
 - Unit tests maybe
 - Look into adding to package managers: apt, dnf/yum, Alpine, brew, choco, snap, etc.
 - Consider crates.io release
 - Consider making trace a standalone subcommand
+- Refactor interface lookup to use new map struct in all places
+- Fix import warnings
