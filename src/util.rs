@@ -134,15 +134,15 @@ pub fn find_pcap_device(source_ip: Ipv4Addr) -> Result<Device, NtkError> {
     return Err(NtkError::IpIfAssociationError(source_ip.to_string()));
 }
 
-/// Gets the 'device' (interface) from which to capture packet responses on (by name)
-#[cfg(feature = "with-libpcap")]
-pub fn find_pcap_device_by_name(interface_name: &str) -> Result<Device, NtkError> {
-    Device::list()
-        .map_err(NtkError::LibPacketCaptureFailure)?
-        .into_iter()
-        .find(|device| device.name == interface_name)
-        .ok_or_else(|| NtkError::IfNameNotFound(String::from(interface_name)))
-}
+// /// Gets the 'device' (interface) from which to capture packet responses on (by name)
+// #[cfg(feature = "with-libpcap")]
+// pub fn find_pcap_device_by_name(interface_name: &str) -> Result<Device, NtkError> {
+//     Device::list()
+//         .map_err(NtkError::LibPacketCaptureFailure)?
+//         .into_iter()
+//         .find(|device| device.name == interface_name)
+//         .ok_or_else(|| NtkError::IfNameNotFound(String::from(interface_name)))
+// }
 
 /// The parsed result of an inbound ICMP packet, covering both ping and traceroute use cases.
 #[cfg(feature = "with-libpcap")]
