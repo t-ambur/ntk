@@ -1,4 +1,4 @@
-#[cfg(not(windows))]
+#[cfg(not(all(target_os = "windows", not(feature = "with-libpcap"))))]
 use std::time::{Duration};
 
 use crate::util;
