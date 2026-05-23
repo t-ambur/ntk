@@ -281,7 +281,7 @@ impl NetdevInterfaceNameMap {
     //         .into_iter()
     //         .find(|i| interface_name_matches(&i.name, &name))
     // }
-    #[cfg(not(windows))]
+    #[cfg(all(not(feature = "with-libpcap"), not(windows)))]
     pub fn resolve_pnet(&self, query: &str) -> Option<pnet::datalink::NetworkInterface> {
         let name = self.resolve_name(query)?;
         pnet::datalink::interfaces()
