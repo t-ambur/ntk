@@ -1,4 +1,5 @@
 use std::{net::{IpAddr, Ipv4Addr}, str::FromStr};
+use std::collections::HashMap;
 
 use crate::commands::lookup;
 
@@ -9,7 +10,6 @@ use pcap::Device;
 #[cfg(feature = "with-libpcap")]
 use crate::error::NtkError;
 
-#[cfg(windows)]
 use netdev::get_interfaces;
 
 /// Asserts a string is a valid IPv4 addresses and then converts it to the core::net type
@@ -96,23 +96,6 @@ pub fn compute_source_ip(ip_str: &str) -> IpAddr {
         }
         Err(e) => { panic!("Was unable to bind to the host in order to determine the source IP!: {e}") }
     }
-}
-
-/// Grabs an interface object from the netdev crate (not pnet).
-/// The netdev crate is typically more cross platform friendly.
-pub fn get_interface_for_target_netdev(target: &str) -> (Ipv4Addr, netdev::Interface) {
-    let source_ip = compute_source_ip(target);
-    let ipv4 = match source_ip {
-        IpAddr::V4(addr) => addr,
-        IpAddr::V6(_) => panic!("Expected IPv4 address but received IPv6 when getting source/origin interface"),
-    };
-
-    let interface = netdev::get_interfaces()
-        .into_iter()
-        .find(|iface| iface.ipv4.iter().any(|net| net.addr() == ipv4))
-        .expect("Could not match source IP to a network interface");
-
-    (ipv4, interface)
 }
 
 /// Parses a TCP reply from the pcap crate
@@ -219,6 +202,98 @@ pub fn parse_icmp_packet(data: &[u8]) -> Option<IcmpResponse> {
         }
 
         _ => None,
+    }
+}
+
+/// Grabs an interface object from the netdev crate (not pnet).
+/// The netdev crate is typically more cross platform friendly.
+pub fn get_interface_for_target_netdev(target: &str) -> (Ipv4Addr, netdev::Interface) {
+    let source_ip = compute_source_ip(target);
+    let ipv4 = match source_ip {
+        IpAddr::V4(addr) => addr,
+        IpAddr::V6(_) => panic!("Expected IPv4 address but received IPv6 when getting source/origin interface"),
+    };
+
+    let interface = get_interfaces()
+        .into_iter()
+        .find(|iface| iface.ipv4.iter().any(|net| net.addr() == ipv4))
+        .expect("Could not match source IP to a network interface");
+
+    (ipv4, interface)
+}
+
+fn normalize_interface_name(name: &str) -> &str {
+    name.strip_prefix(r"\Device\NPF_").unwrap_or(name)
+}
+fn interface_name_matches(stored: &str, query: &str) -> bool {
+    stored == query || normalize_interface_name(stored) == query || stored == normalize_interface_name(query)
+}
+
+pub struct NetdevInterfaceNameMap {
+    by_friendly: HashMap<String,  String>,
+    by_interface: HashMap<String, String>,
+}
+impl NetdevInterfaceNameMap {
+    pub fn build() -> Self {
+        let mut by_friendly = HashMap::new();
+        let mut by_interface = HashMap::new();
+
+        for interface in get_interfaces() {
+            let name = normalize_interface_name(&interface.name).to_string();
+            let friendly = interface.friendly_name.unwrap_or_else(|| name.clone());
+            by_friendly.insert(friendly.clone(), name.clone());
+            by_interface.insert(name, friendly);
+        }
+
+        Self { by_friendly, by_interface }
+    }
+    // pub fn interface_by_friendly(&self, friendly: &str) -> Option<String> {
+    //     self.by_friendly.get(friendly).cloned()
+    // }
+    // pub fn friendly_by_interface(&self, interface_name: &str) -> Option<String> {
+    //     self.by_interface.get(interface_name).cloned()
+    // }
+    fn resolve_name(&self, query: &str) -> Option<String> {
+        let norm_query = normalize_interface_name(query);
+
+        // 1. exact friendly name match (try both forms)
+        if let Some(name) = self.by_friendly.get(query)
+            .or_else(|| self.by_friendly.get(norm_query))
+        {
+            return Some(name.clone());
+        }
+        // 2. exact interface name match (try both forms)
+        if self.by_interface.contains_key(query) {
+            return Some(query.to_string());
+        }
+        if self.by_interface.contains_key(norm_query) {
+            return Some(norm_query.to_string());
+        }
+        // 3. substring match on interface name (try both forms)
+        self.by_interface
+            .iter()
+            .find(|(iface, _)| iface.contains(query) || iface.contains(norm_query))
+            .map(|(iface, _)| iface.clone())
+    }
+    // pub fn resolve_netdev(&self, query: &str) -> Option<netdev::Interface> {
+    //     let name = self.resolve_name(query)?;
+    //     get_interfaces()
+    //         .into_iter()
+    //         .find(|i| interface_name_matches(&i.name, &name))
+    // }
+    #[cfg(not(windows))]
+    pub fn resolve_pnet(&self, query: &str) -> Option<pnet::datalink::NetworkInterface> {
+        let name = self.resolve_name(query)?;
+        pnet::datalink::interfaces()
+            .into_iter()
+            .find(|i| interface_name_matches(&i.name, &name))
+    }
+    #[cfg(feature = "with-libpcap")]
+    pub fn resolve_pcap(&self, query: &str) -> Option<Device> {
+        let name = self.resolve_name(query)?;
+        Device::list().ok()?
+            .into_iter()
+            .find(|d| interface_name_matches(&d.name, &name))
     }
 }
 

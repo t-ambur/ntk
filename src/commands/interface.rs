@@ -23,10 +23,14 @@ pub async fn run(down_only: bool, up_only: bool) -> Result<Vec<Interface>, NtkEr
 
         // On Windows, devices are identified via
         // 'friendly names' for users and GUIDs otherwise
+        // Mac apparently tags some common interfaces with friendly_name as well
         // We print both because its confusing otherwise
         match &iface.friendly_name {
             Some(friendly_name) => {
+                #[cfg(windows)]
                 println!("\n {}", friendly_name);
+                #[cfg(not(windows))]
+                println!(" {}", friendly_name);
                 print!(
                     "{:<name_w$} {:<s_w$} {:<m_w$} ",
                     iface.name, status, mac,

@@ -1,3 +1,4 @@
+#[cfg(not(windows))]
 use std::time::{Duration};
 
 use crate::util;

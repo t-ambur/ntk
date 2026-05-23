@@ -1,6 +1,4 @@
 use crate::error::NtkError;
-
-#[cfg(feature = "with-libpcap")]
 use crate::util;
 
 #[cfg(feature = "with-libpcap")]
@@ -293,7 +291,11 @@ fn parse_udp(buf: &[u8]) -> ProtocolType {
 
 #[cfg(feature = "with-libpcap")]
 pub async fn run(interface_name: &str) -> Result<(), NtkError> {
-    let pcap_device = util::find_pcap_device_by_name(interface_name)?;
+    let interface_map = util::NetdevInterfaceNameMap::build();
+    let pcap_device = match interface_map.resolve_pcap(interface_name) {
+        Some(iface) => iface,
+        None => return Err(NtkError::IfNameNotFound(String::from(interface_name))),
+    };
 
     let mut cap = Capture::from_device(pcap_device)
         .map_err(NtkError::LibPacketCaptureFailure)?
@@ -329,11 +331,11 @@ pub async fn run(interface_name: &str) -> Result<(), NtkError> {
 
 #[cfg(all(unix, not(feature = "with-libpcap")))]
 pub async fn run(interface_name: &str) -> Result<(), NtkError> {
-    let interfaces = datalink::interfaces();
-    let iface = interfaces
-        .into_iter()
-        .find(|i| i.name == interface_name)
-        .ok_or_else(|| NtkError::IfNameNotFound(interface_name.to_string()))?;
+    let interface_map = util::NetdevInterfaceNameMap::build();
+    let iface = match interface_map.resolve_pnet(interface_name) {
+        Some(iface) => iface,
+        None => return Err(NtkError::IfNameNotFound(String::from(interface_name))),
+    };
 
     let (_, mut rx) = match datalink::channel(&iface, Default::default()) {
         Ok(Ethernet(tx, rx)) => (tx, rx),
