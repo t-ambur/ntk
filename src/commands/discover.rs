@@ -43,7 +43,7 @@ fn get_interface(interface_name: &str) -> Result<NetworkInterface, NtkError> {
     }
 
     // If an interface name is provided, try to find it
-    #[cfg(not(windows))]
+    #[cfg(all(not(windows), not(target_os = "macos")))]
     if let Some(interface) = interfaces.into_iter().find(|iface| iface.name == interface_name) {
         return Ok(interface);
     }
