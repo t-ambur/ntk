@@ -43,7 +43,8 @@ pub enum NtkError {
     GatewayMacUnresolved,
     #[cfg(not(all(target_os = "windows", not(feature = "with-libpcap"))))]
     ArpResolutionTimeout(String),
-    #[cfg(not(feature = "with-libpcap"))]
+    #[cfg(not(all(target_os = "windows", not(feature = "with-libpcap"))))]
+    #[allow(dead_code)]
     IcmpReceive(std::io::Error),
     #[cfg(all(not(unix), not(feature = "with-libpcap")))]
     WrongBinaryInUse(String),
@@ -53,7 +54,7 @@ pub enum NtkError {
     LibPacketCaptureFailure(pcap::Error),
     #[cfg(feature = "with-libpcap")]
     TaskJoinError,
-    #[cfg(any(feature = "with-libpcap", not(unix)))]
+    #[cfg(feature = "with-libpcap")]
     UnexpectedHandle,
 }
 
@@ -99,7 +100,7 @@ impl fmt::Display for NtkError {
             NtkError::GatewayMacUnresolved => write!(f, "The default gateway was detected but its MAC Address is 'the zero address' and is unusable as a destination."),
             #[cfg(not(all(target_os = "windows", not(feature = "with-libpcap"))))]
             NtkError::ArpResolutionTimeout(s) => write!(f, "Timeout waiting for an ARP reply from a remote IP: {s}"),
-            #[cfg(not(feature = "with-libpcap"))]
+            #[cfg(not(all(target_os = "windows", not(feature = "with-libpcap"))))]
             NtkError::IcmpReceive(e) => write!(f, "Failed to receive ICMP ping packet: {e}"),
             #[cfg(all(not(unix), not(feature = "with-libpcap")))]
             NtkError::WrongBinaryInUse(s) => write!(f, "{s}"),
@@ -109,7 +110,7 @@ impl fmt::Display for NtkError {
             NtkError::LibPacketCaptureFailure(e) => write!(f, "Failure to receive or setting up to receive packets: {e}"),
             #[cfg(feature = "with-libpcap")]
             NtkError::TaskJoinError => write!(f, "Failed to gracefully join (shutdown) async thread."),
-            #[cfg(any(feature = "with-libpcap", not(unix)))]
+            #[cfg(feature = "with-libpcap")]
             NtkError::UnexpectedHandle => write!(f, "A function expected a thread handle or an async tokio handle but rx the wrong one."),
         }
     }

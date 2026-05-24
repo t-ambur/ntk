@@ -1,7 +1,9 @@
-use std::{net::{IpAddr, Ipv4Addr}, str::FromStr};
-use std::collections::HashMap;
-
 use crate::commands::lookup;
+
+use std::{net::{IpAddr, Ipv4Addr}, str::FromStr};
+
+#[cfg(any(unix, feature = "with-libpcap"))]
+use std::collections::HashMap;
 
 #[cfg(feature = "with-libpcap")]
 use pnet::packet::{Packet, ethernet::{EtherTypes, EthernetPacket}, icmp::{IcmpPacket, IcmpTypes, echo_reply::EchoReplyPacket}, ip::IpNextHeaderProtocols, ipv4::Ipv4Packet, tcp::TcpPacket};
@@ -222,17 +224,21 @@ pub fn get_interface_for_target_netdev(target: &str) -> (Ipv4Addr, netdev::Inter
     (ipv4, interface)
 }
 
+#[cfg(any(unix, feature = "with-libpcap"))]
 fn normalize_interface_name(name: &str) -> &str {
     name.strip_prefix(r"\Device\NPF_").unwrap_or(name)
 }
+#[cfg(any(unix, feature = "with-libpcap"))]
 fn interface_name_matches(stored: &str, query: &str) -> bool {
     stored == query || normalize_interface_name(stored) == query || stored == normalize_interface_name(query)
 }
 
+#[cfg(any(unix, feature = "with-libpcap"))]
 pub struct NetdevInterfaceNameMap {
     by_friendly: HashMap<String,  String>,
     by_interface: HashMap<String, String>,
 }
+#[cfg(any(unix, feature = "with-libpcap"))]
 impl NetdevInterfaceNameMap {
     pub fn build() -> Self {
         let mut by_friendly = HashMap::new();

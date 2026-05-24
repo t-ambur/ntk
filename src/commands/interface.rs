@@ -31,24 +31,26 @@ pub async fn run(down_only: bool, up_only: bool) -> Result<Vec<Interface>, NtkEr
                 println!("\n {}", friendly_name);
                 #[cfg(not(windows))]
                 println!(" {}", friendly_name);
-                print!(
-                    "{:<name_w$} {:<s_w$} {:<m_w$} ",
-                    iface.name, status, mac,
-                    name_w = 10,
-                    s_w    = 5,
-                    m_w    = default_col_width,
-                );
+                
             }
-            None => {
-                print!(
-                    "{:<name_w$} {:<s_w$} {:<m_w$} ",
-                    iface.name, status, mac,
-                    name_w = 10,
-                    s_w    = 5,
-                    m_w    = default_col_width,
-                );
-            }
+            None => {}
         }
+        #[cfg(windows)]
+        print!(
+            "'{:<name_w$}' {:<s_w$} {:<m_w$} ",
+            iface.name, status, mac,
+            name_w = 10,
+            s_w    = 5,
+            m_w    = default_col_width,
+        );
+        #[cfg(not(windows))]
+        print!(
+            "{:<name_w$} {:<s_w$} {:<m_w$} ",
+            iface.name, status, mac,
+            name_w = 10,
+            s_w    = 5,
+            m_w    = default_col_width,
+        );
 
         for ip_net in &iface.ipv4 {
             // ip_net is netdev::ip::Ipv4Net, which has .addr and .prefix_len

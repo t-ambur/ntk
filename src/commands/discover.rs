@@ -20,9 +20,9 @@ fn get_interface(interface_name: &str) -> Result<NetworkInterface, NtkError> {
     // Get all available network interfaces
     let interfaces = datalink::interfaces();
 
-    // On Windows, try to resolve the interface name using the friendly name first
+    // On Windows and Mac, try to resolve the interface name using the friendly name first
     // then fallback to the GUID
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     {
         let netdev_name = get_interfaces()
             .into_iter()
