@@ -56,6 +56,7 @@ pub enum NtkError {
     TaskJoinError,
     #[cfg(feature = "with-libpcap")]
     UnexpectedHandle,
+    JsonParseFailure(serde_json::Error),
 }
 
 impl fmt::Display for NtkError {
@@ -112,6 +113,7 @@ impl fmt::Display for NtkError {
             NtkError::TaskJoinError => write!(f, "Failed to gracefully join (shutdown) async thread."),
             #[cfg(feature = "with-libpcap")]
             NtkError::UnexpectedHandle => write!(f, "A function expected a thread handle or an async tokio handle but rx the wrong one."),
+            NtkError::JsonParseFailure(e) => write!(f, "Failed to parse JSON: {e}"),
         }
     }
 }

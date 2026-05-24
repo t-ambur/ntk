@@ -57,6 +57,9 @@ async fn run() -> Result<(), NtkError> {
         Commands::MacVendor { address, ignore_certs } => {
             commands::fetch::run_get_mac_vendor(&address, ignore_certs).await?
         },
+        Commands::Out { url, method, body, ignore_certs, use_http } => {
+            commands::out::run_out(&url, method, body, ignore_certs, use_http).await?
+        },
         Commands::Ping {ip, trace, count, packet_ttl, timeout, lookup_trace_hostnames} => {
             if trace {
                 commands::ping::run_traceroute(&ip, timeout, packet_ttl, lookup_trace_hostnames).await?
@@ -121,6 +124,9 @@ async fn run() -> Result<(), NtkError> {
         },
         Commands::MacVendor { address, ignore_certs } => {
             commands::fetch::run_get_mac_vendor(&address, ignore_certs).await?
+        },
+        Commands::Out { url, method, body, ignore_certs, use_http } => {
+            commands::out::run_out(&url, method, body, ignore_certs, use_http).await?
         },
         Commands::Ping {ip: _, trace: _, count: _, packet_ttl: _, timeout: _, lookup_trace_hostnames: _ } => {
             return Err(
