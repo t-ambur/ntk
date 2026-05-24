@@ -12,7 +12,7 @@ use crate::error::NtkError;
 #[cfg(windows)]
 use crate::util::get_netdev_friendly_name;
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 use netdev::get_interfaces;
 
 /// Function to get the network interface by name or default to the first available one
