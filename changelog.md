@@ -2,6 +2,16 @@
 
 Each version change in `ntk` should be recorded here.
 
+## v0.5.0
+
+- Adds new 'view' subcommand similar to how tcpdump works
+- Adds new 'out' subcommand for POST / PUT / PATCH / DELETE with JSON bodies
+- New output messages when the 'banner' subcommand fails to connect to a TCP port
+- The discover subcommand now checks first against friendly name on MacOS just like on Windows
+- The interface subcommand GUIDs are always quoted by when output on Windows
+- Removed newline formatting when printing friendly names of interfaces via the interface subcommand on non-windows hosts (e.g. MacOS)
+- Resolved all compiler warnings on Windows
+
 ## v0.4.0
 
 - Adds the `banner` subcommand to scrape a remote host for all available banners

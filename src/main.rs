@@ -23,6 +23,7 @@ async fn main() -> Result<(), NtkError> {
 async fn run() -> Result<(), NtkError> {
     let cli = Cli::parse();
 
+    #[cfg(any(unix, feature = "with-libpcap"))]
     match cli.command {
         Commands::Analyze { ip, web_lookup_mac , ignore_certs, use_http} => {
             commands::analyze::run(&ip, web_lookup_mac, ignore_certs, use_http).await?
@@ -31,11 +32,6 @@ async fn run() -> Result<(), NtkError> {
             commands::banner::run(util::str_to_ip(&ip)).await?
         }
         Commands::Discover { interface , collection_time} => {
-            #[cfg(all(not(unix), not(feature = "with-libpcap")))]
-            {
-                return Err(NtkError::WrongBinaryInUse(String::from("The Discover command requires a 'libpcap' equivalent when not ran on a Unix host (e.g. Npcap on Windows). Please install the dependency and use the appropriate ntk binary.")));
-            }
-            #[cfg(any(unix, feature = "with-libpcap"))]
             commands::discover::run(interface, collection_time).await?
         },
         Commands::Fetch { url, ignore_certs, use_http, download, show_headers, no_content, download_path, num_hops } => {
@@ -61,12 +57,10 @@ async fn run() -> Result<(), NtkError> {
         Commands::MacVendor { address, ignore_certs } => {
             commands::fetch::run_get_mac_vendor(&address, ignore_certs).await?
         },
+        Commands::Out { url, method, body, ignore_certs, use_http } => {
+            commands::out::run_out(&url, method, body, ignore_certs, use_http).await?
+        },
         Commands::Ping {ip, trace, count, packet_ttl, timeout, lookup_trace_hostnames} => {
-            #[cfg(all(not(unix), not(feature = "with-libpcap")))]
-            {
-                return Err(NtkError::WrongBinaryInUse(String::from("The Ping command requires a 'libpcap' equivalent when not ran on a Unix host (e.g. Npcap on Windows). Please install the dependency and use the appropriate ntk binary.")));
-            }
-            #[cfg(any(unix, feature = "with-libpcap"))]
             if trace {
                 commands::ping::run_traceroute(&ip, timeout, packet_ttl, lookup_trace_hostnames).await?
             } else {
@@ -77,11 +71,6 @@ async fn run() -> Result<(), NtkError> {
             if full_handshake {
                 commands::scan_full_handshake::run_tcp_handshake(util::str_to_ip(&ip), lookup_name, delay, start_range, end_range).await?
             } else {
-                #[cfg(all(not(unix), not(feature = "with-libpcap")))]
-                {
-                    return Err(NtkError::WrongBinaryInUse(String::from("The SYN, ACK, and FIN probes require a 'libpcap' equivalent when not ran on a Unix host (e.g. Npcap on Windows). Please install the dependency and use the appropriate ntk binary. Alternatively, use the '-f' flag to init a full handshake.")));
-                }
-                #[cfg(any(unix, feature = "with-libpcap"))]
                 {
                     if ack_probe || fin_probe {
                         commands::scan::run_tcp_ack_probe(&ip, lookup_name, delay, start_range, end_range, timeout, source_port, fin_probe).await?
@@ -90,6 +79,86 @@ async fn run() -> Result<(), NtkError> {
                     }
                 }
             }
+        },
+        Commands::View { interface } => {
+            commands::view::run(&interface).await?;
+        }
+    }
+
+    #[cfg(all(not(unix), not(feature = "with-libpcap")))]
+    match cli.command {
+        Commands::Analyze { ip, web_lookup_mac , ignore_certs, use_http} => {
+            commands::analyze::run(&ip, web_lookup_mac, ignore_certs, use_http).await?
+        },
+        Commands::Banner { ip } => {
+            commands::banner::run(util::str_to_ip(&ip)).await?
+        }
+        Commands::Discover { interface: _ , collection_time: _ } => {
+            return Err(
+                NtkError::WrongBinaryInUse(
+                    String::from(
+                        "The Discover command requires a 'libpcap' equivalent when not ran on a Unix host (e.g. Npcap on Windows). Please install the dependency and use the appropriate ntk binary."
+                    )
+                )
+            );
+        },
+        Commands::Fetch { url, ignore_certs, use_http, download, show_headers, no_content, download_path, num_hops } => {
+            if download {
+                commands::fetch::run_download(&url, ignore_certs, show_headers, download_path, use_http).await?
+            } else {
+                commands::fetch::run_fetch(&url, ignore_certs, show_headers, no_content, download_path, num_hops, use_http).await?
+            }  
+        },
+        Commands::Gateway { first_match, gateways_only, interface_only } => {
+            commands::gateway::run(first_match, gateways_only, interface_only).await?;
+        },
+        Commands::Interface { down_only, up_only} => {
+            commands::interface::run(down_only, up_only).await?;
+        },
+        Commands::Lookup { ip , name_lookup} => {
+            if name_lookup {
+                commands::lookup::run_lookup_host(&ip, true).await?;
+            } else {
+                commands::lookup::run_lookup_addr(util::str_to_ip(&ip), true).await?;
+            }
+        },
+        Commands::MacVendor { address, ignore_certs } => {
+            commands::fetch::run_get_mac_vendor(&address, ignore_certs).await?
+        },
+        Commands::Out { url, method, body, ignore_certs, use_http } => {
+            commands::out::run_out(&url, method, body, ignore_certs, use_http).await?
+        },
+        Commands::Ping {ip: _, trace: _, count: _, packet_ttl: _, timeout: _, lookup_trace_hostnames: _ } => {
+            return Err(
+                NtkError::WrongBinaryInUse(
+                    String::from(
+                        "The Ping command requires a 'libpcap' equivalent when not ran on a Unix host (e.g. Npcap on Windows). Please install the dependency and use the appropriate ntk binary."
+                    )
+                )
+            );
+            
+        },
+        Commands::Scan { ip, lookup_name, delay, start_range, end_range, timeout: _, ack_probe: _, fin_probe: _, full_handshake, reset: _, source_port: _ } => {
+            if full_handshake {
+                commands::scan_full_handshake::run_tcp_handshake(util::str_to_ip(&ip), lookup_name, delay, start_range, end_range).await?
+            } else {
+                return Err(
+                    NtkError::WrongBinaryInUse(
+                        String::from(
+                            "The SYN, ACK, and FIN probes require a 'libpcap' equivalent when not ran on a Unix host (e.g. Npcap on Windows). Please install the dependency and use the appropriate ntk binary. Alternatively, use the '-f' flag to init a full handshake."
+                        )
+                    )
+                );
+            }
+        },
+        Commands::View { interface: _ } => {
+            return Err(
+                NtkError::WrongBinaryInUse(
+                    String::from(
+                        "The view subcommand requires a 'libpcap' equivalent when not ran on a Unix host (e.g. Npcap on Windows). Please install the dependency and use the appropriate ntk binary."
+                    )
+                )
+            );
         }
     }
     

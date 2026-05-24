@@ -1,3 +1,4 @@
+#[cfg(not(all(target_os = "windows", not(feature = "with-libpcap"))))]
 use std::time::{Duration};
 
 use crate::util;
@@ -5,7 +6,13 @@ use crate::commands;
 use crate::error::NtkError;
 
 /// Runs through most of the other subcommands in one big function to determine if a remote target is reachable from here
-pub async fn run(input_str: &str, web_lookup_mac: bool, ignore_certs: bool, http: bool) -> Result<(), NtkError> {
+pub async fn run(
+    input_str: &str,
+    #[cfg_attr(all(windows, not(feature = "with-libpcap")), allow(unused_variables))]
+    web_lookup_mac: bool,
+    ignore_certs: bool,
+    http: bool
+) -> Result<(), NtkError> {
     #[cfg(all(not(unix), not(feature = "with-libpcap")))]
     println!("WARNING: This command is being ran without libpcap on a non-unix operating system. Very limited output will be available. Please install the libpcap binary and dependencies.");
 

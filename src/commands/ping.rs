@@ -323,7 +323,7 @@ async fn rx_icmp_packets(
                     if let Some(&sent_at) = start_times.get(idx) {
                         let elapsed = std::time::SystemTime::now()
                             .duration_since(std::time::UNIX_EPOCH)
-                            .unwrap_or_default() - sent_at;
+                            .expect("time went backwards") - sent_at;
                         println!("{:<seq_w$} {:<ip_w$} {:.2?}", seq, addr, elapsed,
                                 seq_w = 3, ip_w = 16);
                     } else {
@@ -379,7 +379,7 @@ async fn rx_tr_packets(
             Some((packet, addr)) => {
                 let arrived = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default();
+                    .expect("time went backwards");
                 let is_final = packet.get_icmp_type() == IcmpTypes::EchoReply && addr == target_ip;
 
                 // Extract TTL from the sequence number
@@ -459,7 +459,7 @@ fn send_icmp_packets(ip: Ipv4Addr, seq_number: u8, tx: &mut TransportSender) -> 
         );
     let start = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default();
+        .expect("time went backwards");
     match tx.send_to(packet, ip.into()) {
         Err(e) => { return Err(NtkError::PacketSendFailure(e)) }
         _ => {}

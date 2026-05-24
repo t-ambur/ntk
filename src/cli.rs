@@ -1,3 +1,4 @@
+use crate::commands::out::HttpMethod;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
@@ -131,6 +132,27 @@ pub enum Commands {
         #[arg(short, long, default_value_t = false, visible_short_alias = 'k')]
         ignore_certs: bool,
     },
+    /// Perform an HTTP POST, PUT, PATCH, or DELETE on the provided URL or IP Address
+    Out {
+        /// The URL or IP Address to target
+        url: String,
+
+        /// The HTTP method to use to send data out
+        #[arg(short, long, value_enum, ignore_case = true)]
+        method: HttpMethod,
+
+        /// Optional path to a JSON file to attach as the request body
+        #[arg(short, long)]
+        body: Option<String>,
+
+        /// Ignore certificate checking similar to curl -k (insecure)
+        #[arg(short, long, default_value_t = false, visible_short_alias = 'k')]
+        ignore_certs: bool,
+
+        /// Use HTTP instead of HTTPS when not provided at the front of the URL to GET
+        #[arg(short, long, default_value_t = false)]
+        use_http: bool,
+    },
     /// Ping (or optionally trace) a provided IP using ICMP
     Ping {
         /// The IPv4 address to ping
@@ -200,5 +222,10 @@ pub enum Commands {
         /// When provided: use this port as the source for the SYN probe instead of a random one
         #[arg(long)]
         source_port: Option<u16>
-    }    
+    },
+    /// Opens a promiscious mode viewer to monitor for all IPv4 and ARP traffic on a specific interface
+    View {
+        /// The name of the interface to monitor packets on
+        interface: String
+    }
 }

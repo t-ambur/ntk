@@ -71,7 +71,15 @@ async fn handle_content_type(resp: Response, download_path: Option<String>) -> R
 }
 
 /// Runs a HTTP GET request against the specified URL or IP address
-pub async fn run_fetch(url_or_ip: &str, ignore_certs: bool, show_headers: bool, no_content: bool, download_path: Option<String>, max_hops: u8, http: bool) -> Result<(), NtkError> {
+pub async fn run_fetch(
+    url_or_ip: &str,
+    ignore_certs: bool,
+    show_headers: bool,
+    no_content: bool,
+    download_path: Option<String>,
+    max_hops: u8,
+    http: bool
+) -> Result<(), NtkError> {
     let client = Client::builder()
         .redirect(Policy::none()) // Handle redirects manually
         .tls_danger_accept_invalid_certs(ignore_certs)
