@@ -25,7 +25,7 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    /// Perform a check of layers 1-4 and 7 for a given IP or hostname by running most of the commands in ntk
+    /// Perform a check of layers 1-7 for a given IP/host
     Analyze {
         /// The IP of the remote host
         ip: String,
@@ -42,12 +42,12 @@ pub enum Commands {
         #[arg(short, long, default_value_t = false)]
         use_http: bool,
     },
-    /// Establish TCP connections to a remote host in order scrape it for banner responses
+    /// Detect banner responses from a remote host
     Banner {
         /// The IP of the remote host
         ip: String,
     },
-    /// Discover IP and MAC addresses adjacent to this machine using ARP
+    /// Discover IP+MAC addresses adjacent to this machine
     Discover {
         /// A specific network interface to use (e.g., eth0, wlan0)
         #[arg(short, long)]
@@ -57,7 +57,7 @@ pub enum Commands {
         #[arg(short, long, default_value_t = 2)]
         collection_time: u64
     },
-    /// Perform an HTTP GET on the provided URL or IP Address
+    /// Perform an HTTP GET on the provided URL/IP
     Fetch {
         /// The URL or IP Address to GET
         url: String,
@@ -90,7 +90,7 @@ pub enum Commands {
         #[arg(long, default_value_t = 10)]
         num_hops: u8,
     },
-    /// Displays the default network interface and gateway on this device
+    /// Shows the default network interface and gateway
     Gateway {
         /// Show only the first match for gateways
         #[arg(short, long, default_value_t = false)]
@@ -104,7 +104,7 @@ pub enum Commands {
         #[arg(short, long, conflicts_with = "gateways_only", default_value_t = false)]
         interface_only: bool,
     },
-    /// List all interfaces, IP+MAC Addresses, and their states on this device
+    /// List all interface info on this device
     Interface {
         /// Show only interfaces that are DOWN (unavailable)
         #[arg(short, long, conflicts_with = "up_only", default_value_t = false)]
@@ -114,7 +114,7 @@ pub enum Commands {
         #[arg(short, long, conflicts_with = "down_only", default_value_t = false)]
         up_only: bool,
     },
-    /// Lookup the DNS name for a provided IP (or vice-versa)
+    /// Lookup the DNS name for a provided IP/host
     Lookup {
         /// The IPv4 address or hostname lookup
         ip: String,
@@ -123,7 +123,7 @@ pub enum Commands {
         #[arg(short, long)]
         name_lookup: bool
     },
-    /// Performs a HTTP 'Fetch' (GET) to determine the vendor of a provided MAC Address (e.g. FF:FF:FF)
+    /// Determine the vendor of a MAC Address OUI
     MacVendor {
         /// At least the first three octets of a MAC Address to identify (OUI)
         address: String,
@@ -132,7 +132,7 @@ pub enum Commands {
         #[arg(short, long, default_value_t = false, visible_short_alias = 'k')]
         ignore_certs: bool,
     },
-    /// Perform an HTTP POST, PUT, PATCH, or DELETE on the provided URL or IP Address
+    /// Perform POST/PUT/PATCH/DELETE on the provided URL/IP
     Out {
         /// The URL or IP Address to target
         url: String,
@@ -153,7 +153,7 @@ pub enum Commands {
         #[arg(short, long, default_value_t = false)]
         use_http: bool,
     },
-    /// Ping (or optionally trace) a provided IP using ICMP
+    /// Ping (or trace) a provided IP using ICMP
     Ping {
         /// The IPv4 address to ping
         ip: String,
@@ -178,7 +178,7 @@ pub enum Commands {
         #[arg(short, long)]
         lookup_trace_hostnames: bool,
     },
-    /// Reveal open ports on a provided IP by attempting connections to them
+    /// Reveal open ports on a provided IP
     Scan {
         /// The IPv4 address to scan for open TCP sockets
         ip: String,
@@ -223,7 +223,7 @@ pub enum Commands {
         #[arg(long)]
         source_port: Option<u16>
     },
-    /// Opens a promiscious mode viewer to monitor for all IPv4 and ARP traffic on a specific interface
+    /// Views packets on a provided interface (promiscious)
     View {
         /// The name of the interface to monitor packets on
         interface: String

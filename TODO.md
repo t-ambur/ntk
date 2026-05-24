@@ -11,6 +11,7 @@ This is a mental notebook of possible TODOs on this project.
     - Especially for active SSH connections spamming native socket mode on Ubuntu
 - Implement non-JSON (plaintext) support for out subcommand
 - Implement providing the JSON in the CLI itself instead of needing a file for the out subcommand
+- Add banner search to the analyze command
 
 ## Linux
 - Test on Alpine
