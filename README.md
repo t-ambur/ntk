@@ -16,16 +16,18 @@ vX.Y.Z
 Usage: ntk <COMMAND>
 
 Commands:
-  analyze     Perform a check of layers 1-4 and 7 for a given IP or hostname by running most of the commands in ntk
-  banner      Establish TCP connections to a remote host in order scrape it for banner responses
-  discover    Discover IP and MAC addresses adjacent to this machine using ARP
-  fetch       Perform an HTTP GET on the provided URL or IP Address
-  gateway     Displays the default network interface and gateway on this device
-  interface   List all interfaces, IP+MAC Addresses, and their states on this device
-  lookup      Lookup the DNS name for a provided IP (or vice-versa)
-  mac-vendor  Performs a HTTP 'Fetch' (GET) to determine the vendor of a provided MAC Address (e.g. FF:FF:FF)
-  ping        Ping (or optionally trace) a provided IP using ICMP
-  scan        Reveal open ports on a provided IP by attempting connections to them
+  analyze     Perform a check of layers 1-7 for a given IP/host
+  banner      Detect banner responses from a remote host
+  discover    Discover IP+MAC addresses adjacent to this machine
+  fetch       Perform an HTTP GET on the provided URL/IP
+  gateway     Shows the default network interface and gateway
+  interface   List all interface info on this device
+  lookup      Lookup the DNS name for a provided IP/host
+  mac-vendor  Determine the vendor of a MAC Address OUI
+  out         Perform POST/PUT/PATCH/DELETE on the provided URL/IP
+  ping        Ping (or trace) a provided IP using ICMP
+  scan        Reveal open ports on a provided IP
+  view        Views packets on a provided interface (promiscious)
   help        Print this message or the help of the given subcommand(s)
 
 Options:
@@ -96,7 +98,7 @@ You can download pre-built binaries of `ntk` and `ntk.exe` on the [releases page
 You can also download `ntk` from your terminal. To download a release archive using wget (linux):
 ```bash
 # Subsitute the version tags and archive names with the desired one
-wget https://github.com/t-ambur/ntk/releases/download/v0.4.0/ntk-v0.4.0-linux-gnu-x86-pcap.tar.gz
+wget https://github.com/t-ambur/ntk/releases/download/v0.5.0/ntk-v0.5.0-linux-gnu-x86-pcap.tar.gz
 ```
 
 If you want to find the latest releases, you can run (linux):
@@ -285,7 +287,7 @@ For more information on each of these individual functionalities of `ntk`, pleas
 
 `ntk analyze -h`
 ```
-Perform a check of layers 1-4 and 7 for a given IP or hostname by running most of the commands in ntk
+Perform a check of layers 1-7 for a given IP/host
 
 Usage: ntk analyze [OPTIONS] <IP>
 
@@ -439,7 +441,7 @@ The `ntk banner` subcommand is used to scrape 'banners' from a remote host. It d
 
 `ntk banner -h`
 ```
-Establish TCP connections to a remote host in order scrape it for banner responses
+Detect banner responses from a remote host
 
 Usage: ntk banner <IP>
 
@@ -488,7 +490,7 @@ You can find the interfaces on your current device [using the interface subcomma
 
 `ntk discover -h`
 ```
-Discover IP and MAC addresses adjacent to this machine using ARP
+Discover IP+MAC addresses adjacent to this machine
 
 Usage: ntk discover [OPTIONS]
 
@@ -552,7 +554,7 @@ To send data out at layer 7, [please see the 'out' subcommand](#out).
 
 `ntk fetch -h`
 ```
-Perform an HTTP GET on the provided URL or IP Address
+Perform an HTTP GET on the provided URL/IP
 
 Usage: ntk fetch [OPTIONS] <URL>
 
@@ -643,7 +645,7 @@ The `ntk gateway` subcommand shows the 'default route` to the network gateway fo
 
 `ntk gateway -h`
 ```
-Displays the default network interface and gateway on this device
+Shows the default network interface and gateway
 
 Usage: ntk gateway [OPTIONS]
 
@@ -697,7 +699,7 @@ The `ntk interface` subcommand shows layer 1 information about the networking de
 
 `ntk interface -h`
 ```
-List all interfaces, IP+MAC Addresses, and their states on this device
+List all interface info on this device
 
 Usage: ntk interface [OPTIONS]
 
@@ -753,7 +755,7 @@ The `ntk lookup x` subcommand takes in an IP Address (such as _8.8.8.8_) and ret
 
 `ntk lookup -h`
 ```
-Lookup the DNS name for a provided IP (or vice-versa)
+Lookup the DNS name for a provided IP/host
 
 Usage: ntk lookup [OPTIONS] <IP>
 
@@ -793,7 +795,7 @@ Important note: these online URLs will throttle you if you attempt to use `ntk m
 
 `ntk mac-vendor -h`
 ```
-Performs a HTTP 'Fetch' (GET) to determine the vendor of a provided MAC Address (e.g. FF:FF:FF)
+Determine the vendor of a MAC Address OUI
 
 Usage: ntk mac-vendor [OPTIONS] <ADDRESS>
 
@@ -824,7 +826,7 @@ For the GET equivalent, [see the fetch subcommand](#fetch).
 
 `ntk out -h`
 ```
-Perform an HTTP POST, PUT, PATCH, or DELETE on the provided URL or IP Address
+Perform POST/PUT/PATCH/DELETE on the provided URL/IP
 
 Usage: ntk out [OPTIONS] --method <METHOD> <URL>
 
@@ -876,7 +878,7 @@ Each packet sent from this machine will be assigned a sequence number from 1 to 
 
 `ntk ping -h`
 ```
-Ping (or optionally trace) a provided IP using ICMP
+Ping (or trace) a provided IP using ICMP
 
 Usage: ntk ping [OPTIONS] <IP>
 
@@ -960,7 +962,7 @@ More experienced users are also able to perform 'ACK' (e.g. `ntk s -a x`) and 'F
 
 `ntk scan -h`
 ```
-Reveal open ports on a provided IP by attempting connections to them
+Reveal open ports on a provided IP
 
 Usage: ntk scan [OPTIONS] <IP>
 
@@ -1021,7 +1023,7 @@ The `ntk view x` subcommand is used to monitor all IPv4 and ARP packets that com
 
 `ntk view -h`
 ```
-Opens a promiscious mode viewer to monitor for all IPv4 and ARP traffic on a specific interface
+Views packets on a provided interface (promiscious)
 
 Usage: ntk view <INTERFACE>
 

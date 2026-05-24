@@ -2,6 +2,10 @@
 
 Each version change in `ntk` should be recorded here.
 
+## v0.5.1
+
+- Reduces the number of horizontal characters consumed by the help menu
+
 ## v0.5.0
 
 - Adds new 'view' subcommand similar to how tcpdump works
