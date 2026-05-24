@@ -9,6 +9,8 @@ This is a mental notebook of possible TODOs on this project.
     - Make trace a standalone subcommand during this optimization `ntk trace x.x.x.x`
 - Implement filtering for view subcommand
     - Especially for active SSH connections spamming native socket mode on Ubuntu
+- Implement non-JSON (plaintext) support for out subcommand
+- Implement providing the JSON in the CLI itself instead of needing a file for the out subcommand
 
 ## Linux
 - Test on Alpine

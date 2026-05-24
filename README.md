@@ -540,13 +540,15 @@ IP               MAC
 
 ## Fetch
 
-The `ntk fetch x` subcommand retrieves content at layer 7 (application) by executing a HTTPS GET request against a remote target URL or IP. As a troubleshooting tool, `ntk fetch x` will execute a separate GET command against each redirect returned by the server. This is extremely useful for figuring out if you lose connectivity at a particular 'hop' over HTTPS.
+The `ntk fetch x` subcommand retrieves content at layer 7 (application) by executing a HTTPS GET request against a remote target URL or IP. As a troubleshooting tool, `ntk fetch x` will execute a separate GET command against each redirect returned by the server. This is extremely useful for figuring out if you lose connectivity at a particular 'hop' over HTTPS.  
 
 The most notable uses of this command are:
 - `--no-content` to simply confirm that you can connect to each hop at the application layer
 - `--show-headers` to see the headers for the response from each hop
 - `--ignore-certs` commonly used when developing and troubleshooting HTTPS connections
-- `--download` to save a remote resource to a file with a progress bar as opposed to outputing to stdout
+- `--download` to save a remote resource to a file with a progress bar as opposed to outputing to stdout  
+
+To send data out at layer 7, [please see the 'out' subcommand](#out).  
 
 `ntk fetch -h`
 ```
@@ -816,7 +818,53 @@ The command `ntk mac-vendor e4:bf:fa:aa:aa:aa` would have the same output, but y
 
 ## Out
 
-TODO - Not Yet Implemented
+The `ntk out x --method y` subcommand sends out JSON content at layer 7 (application) by executing a HTTP(S) method (POST, PATCH, PUT, or DELETE) against a remote target URL or IP 'x'. A method 'y' must be specified for each request.  
+
+For the GET equivalent, [see the fetch subcommand](#fetch).  
+
+`ntk out -h`
+```
+Perform an HTTP POST, PUT, PATCH, or DELETE on the provided URL or IP Address
+
+Usage: ntk out [OPTIONS] --method <METHOD> <URL>
+
+Arguments:
+  <URL>  The URL or IP Address to target
+
+Options:
+  -m, --method <METHOD>  The HTTP method to use to send data out [possible values: post, patch, put, delete]
+  -b, --body <BODY>      Optional path to a JSON file to attach as the request body
+  -i, --ignore-certs     Ignore certificate checking similar to curl -k (insecure) [aliases: -k]
+  -u, --use-http         Use HTTP instead of HTTPS when not provided at the front of the URL to GET
+  -h, --help             Print help
+```
+### Examples
+
+Example 1:  
+Sending a POST request with a JSON body from a file:  
+`ntk out -m POST httpbin.org/post -b test.json`
+```
+{
+  "args": {},
+  "data": "{\"hello\":\"goodbye\"}",
+  "files": {},
+  "form": {},
+  "headers": {
+    "Accept": "*/*",
+    "Content-Length": "19",
+    "Content-Type": "application/json",
+    "Host": "httpbin.org",
+    "X-Amzn-Trace-Id": "Root=1-6a13391a-4ed66d5663db16d06a2bd9ab"
+  },
+  "json": {
+    "hello": "goodbye"
+  },
+  "origin": "69.253.94.59",
+  "url": "https://httpbin.org/post"
+}
+```
+
+**NOTE:** The positions of the arguments do not matter. See example 1 for a reversing of the method flag and the target URL.
 
 ## Ping
 
