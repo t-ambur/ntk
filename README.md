@@ -456,11 +456,11 @@ Example 1:
 Searching my home router:  
 `ntk b 10.0.0.1`
 ```
-21   : No banner found.
-22   : No banner found.
-23   : No banner found.
-25   : No banner found.
-80   : HTTP/1.0 200 OK
+21   : 'Failed to connect.'
+22   : 'Failed to connect.'
+23   : 'Failed to connect.'
+25   : 'Failed to connect.'
+80   : 'HTTP/1.0 200 OK
 Content-type: text/html
 X-robots-tag: noindex,nofollow
 X-Frame-Options: deny
@@ -472,10 +472,10 @@ Cache-Control: no-store, no-cache, must-revalidate
 Content-Security-Policy: default-src 'self' ; style-src 'self' ; frame-src 'self' ; font-src 'self' ; form-action 'self' ; script-src 'self' 'unsafe-inline' 'unsafe-eval'; img-src 'self'; connect-src 'self'; object-src 'none'; media-src 'none'; script-nonce 'none'; plugin-types 'none'; reflected-xss 'none'; report-uri 'none';
 Content-Length: 8340
 Connection: close
-Date: Mon, 12 Jan 1970 08:41:25 GMT
-Server: Xfinity Broadband Router Server
+Date: Sun, 18 Jan 1970 14:36:38 GMT
+Server: Xfinity Broadband Router Server'
 443  : No banner found.
-8080 : No banner found.
+8080 : 'Failed to connect.'
 ```
 
 ## Discover
