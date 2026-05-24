@@ -83,7 +83,7 @@ pub async fn run_out(
         .await
         .map_err(NtkError::FetchFailedToGetTextBody)?;
 
-    println!("{} {} -> {} - {:?}",
+    println!("{} {} ->\n {} - {:?}\n",
         method_str(&method),
         url,
         status.as_str(),

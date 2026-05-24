@@ -7,7 +7,6 @@ This is a mental notebook of possible TODOs on this project.
 - Ping -> wait for response -> ping again (similar to expected behavior)
 - Further optimize the response times of `ntk ping -t x.x.x.x` (trace)
     - Make trace a standalone subcommand during this optimization `ntk trace x.x.x.x`
-- Further handling of friendly_name for both Mac and Windows
 
 ## Linux
 - Test on Alpine

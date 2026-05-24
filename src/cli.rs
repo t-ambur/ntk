@@ -138,7 +138,7 @@ pub enum Commands {
         url: String,
 
         /// The HTTP method to use to send data out
-        #[arg(short, long, value_enum)]
+        #[arg(short, long, value_enum, ignore_case = true)]
         method: HttpMethod,
 
         /// Optional path to a JSON file to attach as the request body
