@@ -2,6 +2,11 @@
 
 Each version change in `ntk` should be recorded here.
 
+## 0.5.2
+
+- Add debug! macro
+- WIP Bugfix for scan interface on multi interface computers
+
 ## v0.5.1
 
 - Reduces the number of horizontal characters consumed by the help menu

@@ -19,6 +19,9 @@ v{version}
 "
 )]
 pub struct Cli {
+    #[arg(long, global = true, default_value_t = false)]
+    pub verbose: bool,
+
     #[command(subcommand)]
     pub command: Commands,
 }

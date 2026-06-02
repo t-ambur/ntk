@@ -316,6 +316,17 @@ pub fn get_netdev_friendly_name(pnet_name: &str) -> String {
         .unwrap_or(String::from("Unknown"))
 }
 
+/// Creates a println stdout message with the words DEBUG: in front only if verbose mode is true
+macro_rules! debug {
+    ($verbose:expr, $($arg:tt)*) => {
+        if $verbose {
+            println!("DEBUG: {}", format_args!($($arg)*));
+        }
+    };
+}
+pub(crate) use debug;
+
+// // //
 
 // Old code - for reference only
 

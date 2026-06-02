@@ -1,6 +1,6 @@
 
 use crate::error::NtkError;
-use crate::util;
+use crate::util::{self, debug};
 use crate::scan_util::{PortIter, port_map};
 
 use pnet::packet::{MutablePacket};
@@ -300,31 +300,37 @@ async fn handle_transport_setup(ip_str: &str,  user_source_port: Option<u16>)
 async fn handle_transport_setup_pcap(
     ip_str: &str,
     user_source_port: Option<u16>,
+    verbose: bool,
 ) -> Result<PcapSendContext, NtkError> {
     let target_ip = util::str_or_hostname_to_ipv4(ip_str).await;
     let source_port = user_source_port
         .unwrap_or_else(|| rand::random_range(32768..61000));
+    debug!(verbose, "Using source port: {source_port}");
 
     let source_ip = match util::compute_source_ip(ip_str) {
         IpAddr::V4(ip) => ip,
         IpAddr::V6(_) => return Err(NtkError::Ipv6FoundError),
     };
+    debug!(verbose, "Using source IP: {source_ip}");
 
     // Get the netdev interface for gateway MAC already resolved by the OS
     let nd_iface = netdev::get_interfaces()
         .into_iter()
         .find(|i| i.ipv4.iter().any(|net| net.addr() == source_ip))
         .ok_or(NtkError::IpIfAssociationError(source_ip.to_string()))?;
+    debug!(verbose, "Using interface: {}", nd_iface.name);
 
     let src_mac = nd_iface.mac_addr
         .ok_or(NtkError::SourceMacAddressFailure(nd_iface.name.clone()))
         .map(|m| { let o = m.octets(); pnet::util::MacAddr(o[0],o[1],o[2],o[3],o[4],o[5]) })?;
+    debug!(verbose, "Source MAC for ethernet frame is: {src_mac}");
 
     let on_link = nd_iface.ipv4.iter()
         .any(|net| net.contains(&target_ip));
 
     let dst_mac = if on_link {
         // Same subnet: must ARP for the target directly (First hop Mac required in packet)
+        debug!(verbose, "Destination MAC is 'on link' for this subnet.");
         let pnet_iface = pnet::datalink::interfaces()
             .into_iter()
             .find(|i| i.ips.iter().any(|net| net.ip() == IpAddr::V4(source_ip)))
@@ -338,6 +344,7 @@ async fn handle_transport_setup_pcap(
     } else {
         // Off-subnet: netdev already resolved the gateway MAC from the OS —
         // no ARP packet needed
+        debug!(verbose, "Destination MAC is outside this subnet");
         let gw = nd_iface.gateway
             .ok_or(NtkError::GatewayResolutionFailure("no gateway on interface".into()))?;
         let zero = netdev::MacAddr::new(0, 0, 0, 0, 0, 0);
@@ -371,10 +378,18 @@ async fn handle_transport_setup_pcap(
 /// Creates channels applicable to the with-libpcap feature or without (i.e. native socket)
 ///   and sends TCP SYN probe packets to the target IP.
 /// By default will scan an internal array of the 1000 most commonly used ports for 'open' status.
-pub async fn run_tcp_syn_probe(ip_str: &str, lookup_name: bool, delay: u64, start_range: Option<u16>, end_range: Option<u16>, timeout_seconds: u8, show_reset: bool, user_source_port: Option<u16>) -> Result<(), NtkError> {
+pub async fn run_tcp_syn_probe(
+    ip_str: &str, lookup_name: bool,
+    delay: u64, start_range: Option<u16>,
+    end_range: Option<u16>,
+    timeout_seconds: u8,
+    show_reset: bool,
+    user_source_port: Option<u16>,
+    verbose: bool,
+) -> Result<(), NtkError> {
     #[cfg(feature = "with-libpcap")]
     let mut ctx
-        = handle_transport_setup_pcap(ip_str, user_source_port).await?;
+        = handle_transport_setup_pcap(ip_str, user_source_port, verbose).await?;
     
     #[cfg(not(feature = "with-libpcap"))]
     let (target_ip, source_port, mut tx, rx, source_ip, start)
@@ -431,10 +446,19 @@ pub async fn run_tcp_syn_probe(ip_str: &str, lookup_name: bool, delay: u64, star
 ///   and sends TCP ACK (or FIN) probe packets to the target IP.
 /// For these ACK scans you expect 'RST' (reset) responses instead of 'open'.
 /// By default will scan an internal array of the 1000 most commonly used ports for 'open' status.
-pub async fn run_tcp_ack_probe(ip_str: &str, lookup_name: bool, delay: u64, start_range: Option<u16>, end_range: Option<u16>, timeout_seconds: u8, user_source_port: Option<u16>, fin_probe: bool) -> Result<(), NtkError> {
+pub async fn run_tcp_ack_probe(ip_str: &str,
+    lookup_name: bool,
+    delay: u64,
+    start_range: Option<u16>,
+    end_range: Option<u16>,
+    timeout_seconds: u8,
+    user_source_port: Option<u16>,
+    fin_probe: bool,
+    verbose: bool,
+) -> Result<(), NtkError> {
     #[cfg(feature = "with-libpcap")]
     let mut ctx 
-        = handle_transport_setup_pcap(ip_str, user_source_port).await?;
+        = handle_transport_setup_pcap(ip_str, user_source_port, verbose).await?;
     
     #[cfg(not(feature = "with-libpcap"))]
     let (target_ip, source_port, mut tx, rx, source_ip, start)

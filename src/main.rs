@@ -73,9 +73,9 @@ async fn run() -> Result<(), NtkError> {
             } else {
                 {
                     if ack_probe || fin_probe {
-                        commands::scan::run_tcp_ack_probe(&ip, lookup_name, delay, start_range, end_range, timeout, source_port, fin_probe).await?
+                        commands::scan::run_tcp_ack_probe(&ip, lookup_name, delay, start_range, end_range, timeout, source_port, fin_probe, cli.verbose).await?
                     } else {
-                        commands::scan::run_tcp_syn_probe(&ip, lookup_name, delay, start_range, end_range, timeout, reset, source_port).await?
+                        commands::scan::run_tcp_syn_probe(&ip, lookup_name, delay, start_range, end_range, timeout, reset, source_port, cli.verbose).await?
                     }
                 }
             }
