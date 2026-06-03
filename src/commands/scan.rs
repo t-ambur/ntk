@@ -267,11 +267,62 @@ fn send_ack_packet(
     Ok(())
 }
 
+
+/// Collects the netdev interface for the provided inferface_name
+/// Falls back to searching on a source_ip if the interface_name is not provided
+fn get_netdev_interface(
+    verbose: bool,
+    interface_name: Option<String>,
+    source_ip: Ipv4Addr,
+) -> Result<netdev::Interface, NtkError> {
+    let interface_map = util::NetdevInterfaceNameMap::build();
+    let nd_iface = match interface_name {
+        Some(iface_name) => {
+            debug!(verbose, "Using interface name for interface selection: {iface_name}");
+            interface_map.resolve_netdev(&iface_name)
+                .ok_or(NtkError::IfNameNotFound(String::from(iface_name)))?
+        }
+        None => {
+            debug!(verbose, "Using discovered source IP for interface selection: {source_ip}");
+            // Get the netdev interface for gateway MAC already resolved by the OS
+            netdev::get_interfaces()
+                .into_iter()
+                .find(|i| i.ipv4.iter().any(|net| net.addr() == source_ip))
+                .ok_or(NtkError::IpIfAssociationError(source_ip.to_string()))?
+        }
+    };
+    debug!(verbose, "Using interface: {}", nd_iface.name);
+    Ok(nd_iface)
+}
+
+/// Validate that our bind trick to figure out the source IP actually matches what netdev discovered for IPv4 Addresses
+fn validate_source_ip(
+    verbose: bool,
+    netdev_interface: &netdev::Interface,
+    source_ip: Ipv4Addr,
+) -> Result<Ipv4Addr, NtkError> {
+    if !netdev_interface.ipv4_addrs().contains(&source_ip) {
+        debug!(verbose, "Computed source IP: {source_ip} is not contained within the known interface IPv4 addresses! Falling back to first available on interface...");
+        if netdev_interface.ipv4_addrs().len() > 0 {
+            Ok(netdev_interface.ipv4_addrs()[0])
+        } else {
+            Err(NtkError::IpIfAssociationError(source_ip.to_string()))
+        }
+    } else {
+        debug!(verbose, "Validated that the bound source IP matches an available IP on the specified interface.");
+        Ok(source_ip)
+    }
+}
+
 /// Handles the transport setup (i.e. the channels)
 /// This variant is for non-libpcap (i.e. native socket mode)
 #[cfg(not(feature = "with-libpcap"))]
-async fn handle_transport_setup(ip_str: &str,  user_source_port: Option<u16>)
-    -> Result<
+async fn handle_transport_setup(
+    ip_str: &str, 
+    user_source_port: Option<u16>,
+    verbose: bool,
+    interface_name: Option<String>,
+) -> Result<
         (Ipv4Addr, u16, TransportSender, TransportReceiver, Ipv4Addr, Instant),
         NtkError>
     {
@@ -280,16 +331,26 @@ async fn handle_transport_setup(ip_str: &str,  user_source_port: Option<u16>)
         Some(p) => { p }
         None => { rand::random_range(32768..61000) }
     };
+    debug!(verbose, "Using source port: {source_port}");
+
     let protocol = Layer4(Ipv4(IpNextHeaderProtocols::Tcp));
     let (tx, rx) = match transport_channel(65536, protocol) {
         Ok(channels) => channels,
         Err(e) => return Err(NtkError::DatalinkOpenFailure(e)),
     };
+    debug!(verbose, "Opened transport channel on native socket!");
 
-    let source_ip = match util::compute_source_ip(&ip_str) {
+    let mut source_ip = match util::compute_source_ip(&ip_str) {
         IpAddr::V4(ip) => { ip }
         IpAddr::V6(_) => { return Err(NtkError::Ipv6FoundError) }
     };
+    source_ip = validate_source_ip(
+        verbose,
+        &get_netdev_interface(verbose, interface_name, source_ip)?,
+        source_ip
+    )?;
+    debug!(verbose, "Using source IP: {source_ip}");
+
     let start = Instant::now();
     Ok((target_ip, source_port, tx, rx, source_ip, start))
 }
@@ -301,24 +362,21 @@ async fn handle_transport_setup_pcap(
     ip_str: &str,
     user_source_port: Option<u16>,
     verbose: bool,
+    interface_name: Option<String>,
 ) -> Result<PcapSendContext, NtkError> {
     let target_ip = util::str_or_hostname_to_ipv4(ip_str).await;
     let source_port = user_source_port
         .unwrap_or_else(|| rand::random_range(32768..61000));
     debug!(verbose, "Using source port: {source_port}");
 
-    let source_ip = match util::compute_source_ip(ip_str) {
+    let mut source_ip = match util::compute_source_ip(ip_str) {
         IpAddr::V4(ip) => ip,
         IpAddr::V6(_) => return Err(NtkError::Ipv6FoundError),
     };
-    debug!(verbose, "Using source IP: {source_ip}");
 
-    // Get the netdev interface for gateway MAC already resolved by the OS
-    let nd_iface = netdev::get_interfaces()
-        .into_iter()
-        .find(|i| i.ipv4.iter().any(|net| net.addr() == source_ip))
-        .ok_or(NtkError::IpIfAssociationError(source_ip.to_string()))?;
-    debug!(verbose, "Using interface: {}", nd_iface.name);
+    let nd_iface = get_netdev_interface(verbose, interface_name, source_ip)?;
+    source_ip = validate_source_ip(verbose, &nd_iface, source_ip)?;
+    debug!(verbose, "Using source IP: {source_ip}");
 
     let src_mac = nd_iface.mac_addr
         .ok_or(NtkError::SourceMacAddressFailure(nd_iface.name.clone()))
@@ -354,7 +412,9 @@ async fn handle_transport_setup_pcap(
         let o = gw.mac_addr.octets();
         pnet::util::MacAddr(o[0], o[1], o[2], o[3], o[4], o[5])
     };
+    debug!(verbose, "Destination MAC for ethernet frame is: {dst_mac}");
 
+    debug!(verbose, "Opening pcap capture channel for transmit...");
     let send_cap = Capture::from_device(util::find_pcap_device(source_ip)?)
         .map_err(NtkError::LibPacketCaptureFailure)?
         .timeout(0)
@@ -371,6 +431,7 @@ async fn handle_transport_setup_pcap(
         target_ip,
         source_port,
     };
+    debug!(verbose, "Transmit channel OK!");
 
     Ok(ctx)
 }
@@ -386,14 +447,15 @@ pub async fn run_tcp_syn_probe(
     show_reset: bool,
     user_source_port: Option<u16>,
     verbose: bool,
+    interface_name: Option<String>,
 ) -> Result<(), NtkError> {
     #[cfg(feature = "with-libpcap")]
     let mut ctx
-        = handle_transport_setup_pcap(ip_str, user_source_port, verbose).await?;
+        = handle_transport_setup_pcap(ip_str, user_source_port, verbose, interface_name).await?;
     
     #[cfg(not(feature = "with-libpcap"))]
     let (target_ip, source_port, mut tx, rx, source_ip, start)
-        = handle_transport_setup(ip_str, user_source_port).await?;
+        = handle_transport_setup(ip_str, user_source_port, verbose, interface_name).await?;
 
     let timeout_seconds = timeout_seconds as u64;
     // Calculate the total time to wait
@@ -405,16 +467,16 @@ pub async fn run_tcp_syn_probe(
     let capture_duration = send_duration + Duration::from_secs(timeout_seconds);
     
     #[cfg(feature = "with-libpcap")]
-    let handle = open_capture_thread(ctx.source_ip, ctx.source_port, ctx.target_ip, show_reset, capture_duration)?;
+    let handle = open_capture_thread(ctx.source_ip, ctx.source_port, ctx.target_ip, show_reset, capture_duration, verbose)?;
 
     #[cfg(not(feature = "with-libpcap"))]
-    let _handle = open_capture_thread(rx, start, capture_duration, source_port, target_ip, lookup_name, show_reset)?;
+    let _handle = open_capture_thread(rx, start, capture_duration, source_port, target_ip, lookup_name, show_reset, verbose)?;
 
     #[cfg(feature = "with-libpcap")]
-    let drain = tokio::spawn(rx_tcp_packets(capture_duration, handle, lookup_name));
+    let drain = tokio::spawn(rx_tcp_packets(capture_duration, handle, lookup_name, verbose));
 
     for port in PortIter::new(start_range, end_range) {
-        // println!("Sending: {}", port);
+        debug!(verbose, "Sending: {port}");
         #[cfg(not(feature = "with-libpcap"))]
         {
             match send_syn_packet(&source_ip, target_ip, port, &mut tx, source_port) {
@@ -432,6 +494,8 @@ pub async fn run_tcp_syn_probe(
         }
         tokio::time::sleep(Duration::from_millis(delay)).await;
     }
+
+    debug!(verbose, "Send complete. Awaiting responses...");
 
     #[cfg(feature = "with-libpcap")]
     drain.await.map_err(|_| NtkError::TaskJoinError)??;
@@ -455,14 +519,15 @@ pub async fn run_tcp_ack_probe(ip_str: &str,
     user_source_port: Option<u16>,
     fin_probe: bool,
     verbose: bool,
+    interface_name: Option<String>,
 ) -> Result<(), NtkError> {
     #[cfg(feature = "with-libpcap")]
     let mut ctx 
-        = handle_transport_setup_pcap(ip_str, user_source_port, verbose).await?;
+        = handle_transport_setup_pcap(ip_str, user_source_port, verbose, interface_name).await?;
     
     #[cfg(not(feature = "with-libpcap"))]
     let (target_ip, source_port, mut tx, rx, source_ip, start)
-        = handle_transport_setup(ip_str, user_source_port).await?;
+        = handle_transport_setup(ip_str, user_source_port, verbose, interface_name).await?;
 
     let timeout_seconds = timeout_seconds as u64;
     // Calculate the total time to wait
@@ -474,10 +539,10 @@ pub async fn run_tcp_ack_probe(ip_str: &str,
     let capture_duration = send_duration + Duration::from_secs(timeout_seconds);
     
     #[cfg(feature = "with-libpcap")]
-    let handle = open_capture_thread_ack(ctx.source_ip, ctx.source_port, ctx.target_ip, capture_duration)?;
+    let handle = open_capture_thread_ack(ctx.source_ip, ctx.source_port, ctx.target_ip, capture_duration, verbose)?;
 
     #[cfg(not(feature = "with-libpcap"))]
-    let _handle = open_capture_thread_ack(rx, start, capture_duration, source_port, target_ip, lookup_name)?;
+    let _handle = open_capture_thread_ack(rx, start, capture_duration, source_port, target_ip, lookup_name, verbose)?;
 
     #[cfg(feature = "with-libpcap")]
     let drain = tokio::spawn(rx_tcp_packets_ack(capture_duration, handle, lookup_name));
@@ -522,7 +587,9 @@ fn open_capture_thread(
     target_ip: Ipv4Addr,
     lookup_name: bool,
     show_reset: bool,
+    verbose: bool,
 ) -> Result<tokio::task::JoinHandle<()>, NtkError> {
+    debug!(verbose, "Spawning thread to monitor capture...");
     let listener_handle = tokio::spawn(async move {
         let mut iter = tcp_packet_iter(&mut rx);
         while start.elapsed() < capture_duration {
@@ -557,6 +624,7 @@ fn open_capture_thread(
             }
         }
     });
+    debug!(verbose, "Capture thread spawned!");
     Ok(listener_handle)
 }
 
@@ -569,7 +637,9 @@ fn open_capture_thread_ack(
     source_port: u16,
     target_ip: Ipv4Addr,
     lookup_name: bool,
+    verbose: bool,
 ) -> Result<tokio::task::JoinHandle<()>, NtkError> {
+    debug!(verbose, "Spawning thread to monitor capture...");
      let listener_handle = tokio::spawn(async move {
         let mut iter = tcp_packet_iter(&mut rx);
         while start.elapsed() < capture_duration {
@@ -594,6 +664,7 @@ fn open_capture_thread_ack(
             }
         }
     });
+    debug!(verbose, "Capture thread spawned!");
     Ok(listener_handle)
 }
 
@@ -639,8 +710,10 @@ fn open_capture_thread(
     target_ip: Ipv4Addr,
     show_reset: bool,
     capture_duration: Duration,
+    verbose: bool,
 ) -> Result<RxHandle, NtkError>
 {
+    debug!(verbose, "Opening pcap capture rx channel...");
     let device = util::find_pcap_device(source_ip)?;
 
     let mut cap = Capture::from_device(device)
@@ -650,6 +723,7 @@ fn open_capture_thread(
         .open()
         .map_err(NtkError::LibPacketCaptureFailure)?;
 
+    debug!(verbose, "Appling bpf filter to opened pcap rx channel...");
     let filter = bpf_filter(target_ip, source_port);
     cap.filter(&filter, true)
         .or_else(|e| Err(NtkError::LibPacketCaptureFailure(e)))?;
@@ -664,6 +738,7 @@ fn open_capture_thread(
     // The actual communications channels
     let (tx_pcap, rx_pcap) = tokio::sync::mpsc::unbounded_channel::<CapturedPacket>();
 
+    debug!(verbose, "Spawning thread to monitor capture...");
     let handle = std::thread::spawn(move || {
         let mut seen = std::collections::HashSet::new();
         // On Windows/Npcap the BPF filter activation in the NDIS driver is
@@ -701,6 +776,7 @@ fn open_capture_thread(
 
     // wait for the thread to be ready to rx packets
     ready_rx.recv().ok();
+    debug!(verbose, "Rx channel OK!");
 
     Ok(RxHandle { handle, rx_pcap })
 }
@@ -712,8 +788,10 @@ fn open_capture_thread_ack(
     source_port: u16,
     target_ip: Ipv4Addr,
     capture_duration: Duration,
+    verbose: bool,
 ) -> Result<RxHandle, NtkError>
 {
+    debug!(verbose, "Opening pcap capture rx channel...");
     let device = util::find_pcap_device(source_ip)?;
 
     let mut cap = Capture::from_device(device)
@@ -723,6 +801,7 @@ fn open_capture_thread_ack(
         .open()
         .map_err(NtkError::LibPacketCaptureFailure)?;
 
+    debug!(verbose, "Appling bpf filter to opened pcap rx channel...");
     let filter = bpf_filter(target_ip, source_port);
     cap.filter(&filter, true)
         .or_else(|e| Err(NtkError::LibPacketCaptureFailure(e)))?;
@@ -736,6 +815,7 @@ fn open_capture_thread_ack(
     let (ready_tx, ready_rx) = std::sync::mpsc::channel::<()>();
     let (tx_pcap, rx_pcap) = tokio::sync::mpsc::unbounded_channel::<CapturedPacket>();
 
+    debug!(verbose, "Spawning thread to monitor capture...");
     let handle = std::thread::spawn(move || {
         let mut seen = std::collections::HashSet::new();
         // On Windows/Npcap the BPF filter activation in the NDIS driver is
@@ -768,6 +848,7 @@ fn open_capture_thread_ack(
 
     // wait for the thread to be ready to rx packets
     ready_rx.recv().ok();
+    debug!(verbose, "Rx channel OK!");
 
     Ok(RxHandle { handle, rx_pcap })
 }
@@ -811,11 +892,12 @@ async fn rx_tcp_packets(
     capture_duration: Duration,
     thread_handle: RxHandle,
     lookup_name: bool,
+    verbose: bool,
 ) -> Result<(), NtkError> {
     let RxHandle { handle, mut rx_pcap } = thread_handle;
 
     let timeout_at = tokio::time::Instant::now() + capture_duration;
-
+    debug!(verbose, "Draining TCP responses in thread...");
     loop {
         match tokio::time::timeout_at(timeout_at, rx_pcap.recv()).await {
             Ok(Some(CapturedPacket { source_port, is_syn_ack })) => {
@@ -841,6 +923,8 @@ async fn rx_tcp_packets(
         }
     }
 
+    debug!(verbose, "Dropping Rx thread handle...");
     drop(handle);
+    debug!(verbose, "Dropped handle.");
     Ok(())
 }

@@ -11,7 +11,8 @@ pub async fn run(
     #[cfg_attr(all(windows, not(feature = "with-libpcap")), allow(unused_variables))]
     web_lookup_mac: bool,
     ignore_certs: bool,
-    http: bool
+    http: bool,
+    verbose: bool,
 ) -> Result<(), NtkError> {
     #[cfg(all(not(unix), not(feature = "with-libpcap")))]
     println!("WARNING: This command is being ran without libpcap on a non-unix operating system. Very limited output will be available. Please install the libpcap binary and dependencies.");
@@ -138,7 +139,9 @@ pub async fn run(
             None,
             10,
             false,
-            None
+            None,
+            verbose,
+            None,
         )
         .await {
             eprintln!("Failed to perform TCP SYN probe: {e}");

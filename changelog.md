@@ -4,8 +4,10 @@ Each version change in `ntk` should be recorded here.
 
 ## 0.5.2
 
-- Add debug! macro
-- WIP Bugfix for scan interface on multi interface computers
+- Added ability to specify interface to use for scan subcommand
+    - Added verification function to ensure bound source IP matches a known IPv4 address on the interface
+- Added --verbose flag applicable to all subcommands
+    - Implemented verbose debug! macro usage for scan subcommand
 
 ## v0.5.1
 

@@ -186,6 +186,10 @@ pub enum Commands {
         /// The IPv4 address to scan for open TCP sockets
         ip: String,
 
+        /// A specific network interface to use (e.g., eth0, wlan0)
+        #[arg(short, long)]
+        interface: Option<String>,
+
         /// Lookup the matched port numbers via hash and output a common name if known
         #[arg(short, long, default_value_t = false)]
         lookup_name: bool,

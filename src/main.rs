@@ -26,7 +26,7 @@ async fn run() -> Result<(), NtkError> {
     #[cfg(any(unix, feature = "with-libpcap"))]
     match cli.command {
         Commands::Analyze { ip, web_lookup_mac , ignore_certs, use_http} => {
-            commands::analyze::run(&ip, web_lookup_mac, ignore_certs, use_http).await?
+            commands::analyze::run(&ip, web_lookup_mac, ignore_certs, use_http, cli.verbose).await?
         },
         Commands::Banner { ip } => {
             commands::banner::run(util::str_to_ip(&ip)).await?
@@ -67,15 +67,15 @@ async fn run() -> Result<(), NtkError> {
                 commands::ping::run_ping(&ip, timeout, count, packet_ttl).await?
             }
         },
-        Commands::Scan { ip, lookup_name, delay, start_range, end_range, timeout, ack_probe, fin_probe, full_handshake, reset, source_port } => {
+        Commands::Scan { ip, interface, lookup_name, delay, start_range, end_range, timeout, ack_probe, fin_probe, full_handshake, reset, source_port } => {
             if full_handshake {
                 commands::scan_full_handshake::run_tcp_handshake(util::str_to_ip(&ip), lookup_name, delay, start_range, end_range).await?
             } else {
                 {
                     if ack_probe || fin_probe {
-                        commands::scan::run_tcp_ack_probe(&ip, lookup_name, delay, start_range, end_range, timeout, source_port, fin_probe, cli.verbose).await?
+                        commands::scan::run_tcp_ack_probe(&ip, lookup_name, delay, start_range, end_range, timeout, source_port, fin_probe, cli.verbose, interface).await?
                     } else {
-                        commands::scan::run_tcp_syn_probe(&ip, lookup_name, delay, start_range, end_range, timeout, reset, source_port, cli.verbose).await?
+                        commands::scan::run_tcp_syn_probe(&ip, lookup_name, delay, start_range, end_range, timeout, reset, source_port, cli.verbose, interface).await?
                     }
                 }
             }

@@ -281,12 +281,12 @@ impl NetdevInterfaceNameMap {
             .find(|(iface, _)| iface.contains(query) || iface.contains(norm_query))
             .map(|(iface, _)| iface.clone())
     }
-    // pub fn resolve_netdev(&self, query: &str) -> Option<netdev::Interface> {
-    //     let name = self.resolve_name(query)?;
-    //     get_interfaces()
-    //         .into_iter()
-    //         .find(|i| interface_name_matches(&i.name, &name))
-    // }
+    pub fn resolve_netdev(&self, query: &str) -> Option<netdev::Interface> {
+        let name: String = self.resolve_name(query)?;
+        get_interfaces()
+            .into_iter()
+            .find(|i| interface_name_matches(&i.name, &name))
+    }
     #[cfg(all(not(feature = "with-libpcap"), not(windows)))]
     pub fn resolve_pnet(&self, query: &str) -> Option<pnet::datalink::NetworkInterface> {
         let name = self.resolve_name(query)?;
