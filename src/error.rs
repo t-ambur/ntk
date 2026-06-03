@@ -104,7 +104,7 @@ impl fmt::Display for NtkError {
             NtkError::IcmpReceive(e) => write!(f, "Failed to receive ICMP ping packet: {e}"),
             #[cfg(all(not(unix), not(feature = "with-libpcap")))]
             NtkError::WrongBinaryInUse(s) => write!(f, "{s}"),
-            NtkError::IpIfAssociationError(s) => write!(f, "No interface exists with the assigned source IPI: {s}"),
+            NtkError::IpIfAssociationError(s) => write!(f, "No interface exists with the assigned source IP: {s}"),
             #[cfg(feature = "with-libpcap")]
             NtkError::LibPacketCaptureFailure(e) => write!(f, "Failure to receive or setting up to receive packets: {e}"),
             #[cfg(feature = "with-libpcap")]

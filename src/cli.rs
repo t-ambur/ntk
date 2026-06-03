@@ -19,6 +19,7 @@ v{version}
 "
 )]
 pub struct Cli {
+    /// Shows verbose DEBUG messages when specified
     #[arg(long, global = true, default_value_t = false)]
     pub verbose: bool,
 

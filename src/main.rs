@@ -88,7 +88,7 @@ async fn run() -> Result<(), NtkError> {
     #[cfg(all(not(unix), not(feature = "with-libpcap")))]
     match cli.command {
         Commands::Analyze { ip, web_lookup_mac , ignore_certs, use_http} => {
-            commands::analyze::run(&ip, web_lookup_mac, ignore_certs, use_http).await?
+            commands::analyze::run(&ip, web_lookup_mac, ignore_certs, use_http, cli.verbose).await?
         },
         Commands::Banner { ip } => {
             commands::banner::run(util::str_to_ip(&ip)).await?
@@ -138,7 +138,7 @@ async fn run() -> Result<(), NtkError> {
             );
             
         },
-        Commands::Scan { ip, lookup_name, delay, start_range, end_range, timeout: _, ack_probe: _, fin_probe: _, full_handshake, reset: _, source_port: _ } => {
+        Commands::Scan { ip, interface, lookup_name, delay, start_range, end_range, timeout: _, ack_probe: _, fin_probe: _, full_handshake, reset: _, source_port: _ } => {
             if full_handshake {
                 commands::scan_full_handshake::run_tcp_handshake(util::str_to_ip(&ip), lookup_name, delay, start_range, end_range).await?
             } else {
