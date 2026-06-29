@@ -426,13 +426,17 @@ async fn handle_transport_setup_pcap(
                 let gw_ip = nd_iface.gateway
                     .as_ref()
                     .and_then(|gw| gw.ipv4.first().copied())
-                    .or_else(|| util::get_gateway_ip_for_source_ip(source_ip))
+                    .or_else(|| {
+                        #[cfg(target_os = "linux")]
+                        { util::get_gateway_ip_from_proc(&nd_iface.name) }
+                        #[cfg(not(target_os = "linux"))]
+                        { None }
+                    })
                     .ok_or_else(|| NtkError::GatewayResolutionFailure(
                         format!("no gateway found for interface {}", nd_iface.name)
                     ))?;
 
                 debug!(verbose, "ARPing for gateway MAC at {gw_ip}");
-
                 let pnet_iface = pnet::datalink::interfaces()
                     .into_iter()
                     .find(|i| i.ips.iter().any(|net| net.ip() == IpAddr::V4(source_ip)))

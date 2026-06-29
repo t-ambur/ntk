@@ -316,43 +316,14 @@ pub fn get_netdev_friendly_name(pnet_name: &str) -> String {
         .unwrap_or(String::from("Unknown"))
 }
 
-/// Resolves the gateway IP for the interface that owns `source_ip`.
-/// Falls back through platform-specific routing table sources.
-pub fn get_gateway_ip_for_source_ip(source_ip: Ipv4Addr) -> Option<Ipv4Addr> {
-    // Try netdev's default interface first (works on all platforms)
-    if let Ok(def) = netdev::get_default_interface() {
-        if let Some(gw) = def.gateway {
-            if let Some(ip) = gw.ipv4.first().copied() {
-                return Some(ip);
-            }
-        }
-    }
-
-    // Linux fallback: parse /proc/net/route
-    #[cfg(target_os = "linux")]
-    {
-        if let Some(ip) = get_gateway_ip_from_proc(source_ip) {
-            return Some(ip);
-        }
-    }
-
-    None
-}
-
 #[cfg(target_os = "linux")]
-fn get_gateway_ip_from_proc(source_ip: Ipv4Addr) -> Option<Ipv4Addr> {
+pub fn get_gateway_ip_from_proc(iface_name: &str) -> Option<Ipv4Addr> {
     let content = std::fs::read_to_string("/proc/net/route").ok()?;
-    // Find the interface name that owns source_ip via netdev, then match in /proc
-    let iface_name = netdev::get_interfaces()
-        .into_iter()
-        .find(|i| i.ipv4.iter().any(|net| net.addr() == source_ip))?
-        .name;
-
     for line in content.lines().skip(1) {
         let cols: Vec<&str> = line.split_whitespace().collect();
         if cols.len() < 3 { continue; }
         if cols[0] != iface_name { continue; }
-        if cols[1] != "00000000" { continue; } // destination == default route
+        if cols[1] != "00000000" { continue; }
         let gw_hex = u32::from_str_radix(cols[2], 16).ok()?;
         return Some(Ipv4Addr::from(u32::from_le(gw_hex)));
     }
