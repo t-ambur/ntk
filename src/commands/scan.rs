@@ -403,6 +403,50 @@ async fn handle_transport_setup_pcap(
         // Off-subnet: netdev already resolved the gateway MAC from the OS —
         // no ARP packet needed
         debug!(verbose, "Destination MAC is outside this subnet");
+
+        let zero = netdev::MacAddr::new(0, 0, 0, 0, 0, 0);
+
+        // Try netdev's resolved gateway MAC first
+        let netdev_mac = nd_iface.gateway
+            .as_ref()
+            .filter(|gw| gw.mac_addr != zero)
+            .map(|gw| {
+                let o = gw.mac_addr.octets();
+                pnet::util::MacAddr(o[0], o[1], o[2], o[3], o[4], o[5])
+            });
+
+        match netdev_mac {
+            Some(mac) => {
+                debug!(verbose, "Using gateway MAC resolved by netdev: {mac}");
+                mac
+            }
+            None => {
+                // netdev didn't resolve the gateway MAC
+                // Resolve the gateway IP, then ARP for its MAC ourselves.
+                let gw_ip = nd_iface.gateway
+                    .as_ref()
+                    .and_then(|gw| gw.ipv4.first().copied())
+                    .or_else(|| util::get_gateway_ip_for_source_ip(source_ip))
+                    .ok_or_else(|| NtkError::GatewayResolutionFailure(
+                        format!("no gateway found for interface {}", nd_iface.name)
+                    ))?;
+
+                debug!(verbose, "ARPing for gateway MAC at {gw_ip}");
+
+                let pnet_iface = pnet::datalink::interfaces()
+                    .into_iter()
+                    .find(|i| i.ips.iter().any(|net| net.ip() == IpAddr::V4(source_ip)))
+                    .ok_or(NtkError::IpIfAssociationError(source_ip.to_string()))?;
+
+                crate::commands::discover::resolve_mac_for_ip(
+                    &pnet_iface,
+                    source_ip,
+                    gw_ip,
+                    Duration::from_secs(3),
+                )?
+            }
+        };
+
         let gw = nd_iface.gateway
             .ok_or(NtkError::GatewayResolutionFailure("no gateway on interface".into()))?;
         let zero = netdev::MacAddr::new(0, 0, 0, 0, 0, 0);
