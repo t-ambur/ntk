@@ -994,16 +994,13 @@ fn get_gateway_ip_via_netlink(target_ip: Ipv4Addr, verbose: bool) -> Option<Ipv4
         AddressFamily,
         RouteNetlinkMessage,
         route::{RouteMessage, RouteAttribute, RouteHeader, RouteProtocol, RouteScope, RouteType, RouteAddress},
+        route::RouteFlags
     };
-    use netlink_sys::{Socket, SocketAddr, protocols::NETLINK_ROUTE};
+    use netlink_sys::{Socket, protocols::NETLINK_ROUTE};
 
     debug!(verbose, "Grabbing socket...");
     let mut socket = Socket::new(NETLINK_ROUTE).ok()?;
-    debug!(verbose, "Grabbing address...");
-    let addr = SocketAddr::new(0, 0);
-    debug!(verbose, "Address is: {:?}", addr);
     socket.bind_auto().ok()?;
-    socket.connect(&addr).ok()?;
 
     let mut route_msg = RouteMessage::default();
     route_msg.header = RouteHeader {
@@ -1012,8 +1009,10 @@ fn get_gateway_ip_via_netlink(target_ip: Ipv4Addr, verbose: bool) -> Option<Ipv4
         protocol: RouteProtocol::Unspec,
         scope: RouteScope::Universe,
         kind: RouteType::Unicast,
+        flags: RouteFlags::empty(),
         ..Default::default()
     };
+
     route_msg.attributes.push(
         RouteAttribute::Destination(RouteAddress::Inet(target_ip))
     );
@@ -1022,6 +1021,7 @@ fn get_gateway_ip_via_netlink(target_ip: Ipv4Addr, verbose: bool) -> Option<Ipv4
         NetlinkHeader::default(),
         RouteNetlinkMessage::GetRoute(route_msg).into(),
     );
+
     nl_msg.header.flags = NLM_F_REQUEST;
     nl_msg.finalize();
 
@@ -1035,21 +1035,67 @@ fn get_gateway_ip_via_netlink(target_ip: Ipv4Addr, verbose: bool) -> Option<Ipv4
     socket.send(&buf, 0).ok()?;
 
     debug!(verbose, "Awaiting rx...");
-
-    let mut recv_buf = vec![0u8; 4096];
-    let n = socket.recv(&mut recv_buf, 0).ok()?;
-
-    let response = NetlinkMessage::<RouteNetlinkMessage>::deserialize(&recv_buf[..n]).ok()?;
+    // Increased buffer size to handle potential responses
+    let mut recv_buf = vec![0u8; 8192];
     
-    debug!(verbose, "Unwrapping payload response: {:?}...", response);
+    // Blocking receive with timeout consideration
+    let n = match socket.recv(&mut recv_buf, 0) {
+        Ok(n) => n,
+        Err(e) => {
+            debug!(verbose, "Receive error: {}", e);
+            return None;
+        }
+    };
 
-    // payload is NetlinkPayload<RouteNetlinkMessage>, unwrap the inner message
-    use netlink_packet_core::NetlinkPayload;
-    if let NetlinkPayload::InnerMessage(RouteNetlinkMessage::NewRoute(msg)) = response.payload {
-        for attr in &msg.attributes {
-            if let RouteAttribute::Gateway(RouteAddress::Inet(gw)) = attr {
-                return Some(*gw);
+    if n == 0 {
+        debug!(verbose, "Received empty response");
+        return None;
+    }
+
+    debug!(verbose, "Received {} bytes", n);
+
+    // Parse the response - check for errors first
+    let result = NetlinkMessage::<RouteNetlinkMessage>::deserialize(&recv_buf[..n]);
+    
+    match result {
+        Ok(response) => {
+            debug!(verbose, "Deserialized response successfully");
+            
+            // Check if there was an error in the response
+            if response.header.length == 0 && !matches!(response.payload, NetlinkPayload::Done(_)) {
+                debug!(verbose, "Response has zero length, likely no matching route");
+                return None;
             }
+            
+            use netlink_packet_core::NetlinkPayload;
+            match response.payload {
+                NetlinkPayload::InnerMessage(RouteNetlinkMessage::NewRoute(msg)) => {
+                    debug!(verbose, "Got NewRoute message");
+                    for attr in &msg.attributes {
+                        if let RouteAttribute::Gateway(RouteAddress::Inet(gw)) = attr {
+                            debug!(verbose, "Found gateway: {}", gw);
+                            return Some(*gw);
+                        }
+                    }
+                    debug!(verbose, "No gateway attribute found in route");
+                },
+                NetlinkPayload::Error(err) => {
+                    debug!(verbose, "Netlink error response: {:?}", err);
+                    return None;
+                },
+                _ => {
+                    debug!(verbose, "Unexpected payload type: {:?}", response.payload);
+                    return None;
+                }
+            }
+        },
+        Err(e) => {
+            debug!(verbose, "Failed to deserialize netlink message: {}", e);
+            // Try to show what we received
+            if n > 0 {
+                debug!(verbose, "Raw response (first 64 bytes): {:?}", &recv_buf[..std::cmp::min(64, n)]);
+            }
+            return None;
         }
     }
 
