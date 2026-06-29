@@ -39,8 +39,8 @@ pub enum NtkError {
     SemaphoreAquirePermitFailure(AcquireError),
     #[cfg(feature = "with-libpcap")]
     GatewayResolutionFailure(String),
-    #[cfg(feature = "with-libpcap")]
-    GatewayMacUnresolved,
+    // #[cfg(feature = "with-libpcap")]
+    // GatewayMacUnresolved,
     #[cfg(not(all(target_os = "windows", not(feature = "with-libpcap"))))]
     ArpResolutionTimeout(String),
     #[cfg(not(all(target_os = "windows", not(feature = "with-libpcap"))))]
@@ -96,8 +96,8 @@ impl fmt::Display for NtkError {
             NtkError::SemaphoreAquirePermitFailure(e) => write!(f, "A thread failure to acquire a lock required to perform work: {e}"),
             #[cfg(feature = "with-libpcap")]
             NtkError::GatewayResolutionFailure(s) => write!(f, "Unable to find the default gateway on the interface in order to send packets: {s}"),
-            #[cfg(feature = "with-libpcap")]
-            NtkError::GatewayMacUnresolved => write!(f, "The default gateway was detected but its MAC Address is 'the zero address' and is unusable as a destination."),
+            // #[cfg(feature = "with-libpcap")]
+            // NtkError::GatewayMacUnresolved => write!(f, "The default gateway was detected but its MAC Address is 'the zero address' and is unusable as a destination."),
             #[cfg(not(all(target_os = "windows", not(feature = "with-libpcap"))))]
             NtkError::ArpResolutionTimeout(s) => write!(f, "Timeout waiting for an ARP reply from a remote IP: {s}"),
             #[cfg(not(all(target_os = "windows", not(feature = "with-libpcap"))))]

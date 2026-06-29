@@ -400,13 +400,11 @@ async fn handle_transport_setup_pcap(
             Duration::from_secs(3),
         )?
     } else {
-        // Off-subnet: netdev already resolved the gateway MAC from the OS —
-        // no ARP packet needed
         debug!(verbose, "Destination MAC is outside this subnet");
 
         let zero = netdev::MacAddr::new(0, 0, 0, 0, 0, 0);
 
-        // Try netdev's resolved gateway MAC first
+        // Fast path: netdev resolved gateway MAC
         let netdev_mac = nd_iface.gateway
             .as_ref()
             .filter(|gw| gw.mac_addr != zero)
@@ -415,50 +413,60 @@ async fn handle_transport_setup_pcap(
                 pnet::util::MacAddr(o[0], o[1], o[2], o[3], o[4], o[5])
             });
 
-        match netdev_mac {
-            Some(mac) => {
-                debug!(verbose, "Using gateway MAC resolved by netdev: {mac}");
-                mac
-            }
-            None => {
-                // netdev didn't resolve the gateway MAC
-                // Resolve the gateway IP, then ARP for its MAC ourselves.
-                let gw_ip = nd_iface.gateway
-                    .as_ref()
-                    .and_then(|gw| gw.ipv4.first().copied())
-                    .or_else(|| {
-                        #[cfg(target_os = "linux")]
-                        { util::get_gateway_ip_from_proc(&nd_iface.name) }
-                        #[cfg(not(target_os = "linux"))]
-                        { None }
-                    })
-                    .ok_or_else(|| NtkError::GatewayResolutionFailure(
-                        format!("no gateway found for interface {}", nd_iface.name)
-                    ))?;
+        if let Some(mac) = netdev_mac {
+            debug!(verbose, "Using gateway MAC resolved by netdev: {mac}");
+            mac
+        } else {
+            // Resolve gateway IP: netdev gateway field, then netlink on Linux
+            let gw_ip = nd_iface.gateway
+                .as_ref()
+                .and_then(|gw| gw.ipv4.first().copied())
+                .or_else(|| {
+                    #[cfg(all(feature = "with-libpcap", target_os = "linux"))]
+                    { get_gateway_ip_via_netlink(target_ip) }
+                    #[cfg(not(target_os = "linux"))]
+                    { None }
+                })
+                .ok_or_else(|| NtkError::GatewayResolutionFailure(
+                    format!("no gateway found for interface {}", nd_iface.name)
+                ))?;
+            debug!(verbose, "Resolved gateway IP: {gw_ip}");
 
-                debug!(verbose, "ARPing for gateway MAC at {gw_ip}");
-                let pnet_iface = pnet::datalink::interfaces()
-                    .into_iter()
-                    .find(|i| i.ips.iter().any(|net| net.ip() == IpAddr::V4(source_ip)))
-                    .ok_or(NtkError::IpIfAssociationError(source_ip.to_string()))?;
-
-                crate::commands::discover::resolve_mac_for_ip(
-                    &pnet_iface,
+            // Try ARP cache before sending ARP packets
+            #[cfg(all(feature = "with-libpcap", target_os = "linux"))]
+            if let Some(mac) = get_gateway_mac_from_arp_cache(gw_ip, &nd_iface.name) {
+                debug!(verbose, "Using gateway MAC from ARP cache: {mac}");
+                return Ok(PcapSendContext {
+                    cap: {
+                        Capture::from_device(util::find_pcap_device(source_ip)?)
+                            .map_err(NtkError::LibPacketCaptureFailure)?
+                            .timeout(0)
+                            .snaplen(0)
+                            .promisc(false)
+                            .open()
+                            .map_err(NtkError::LibPacketCaptureFailure)?
+                    },
+                    src_mac,
+                    dst_mac: mac,
                     source_ip,
-                    gw_ip,
-                    Duration::from_secs(3),
-                )?
+                    target_ip,
+                    source_port,
+                });
             }
-        };
 
-        let gw = nd_iface.gateway
-            .ok_or(NtkError::GatewayResolutionFailure("no gateway on interface".into()))?;
-        let zero = netdev::MacAddr::new(0, 0, 0, 0, 0, 0);
-        if gw.mac_addr == zero {
-            return Err(NtkError::GatewayMacUnresolved);
+            // Last resort: send ARP request
+            let pnet_iface = pnet::datalink::interfaces()
+                .into_iter()
+                .find(|i| i.ips.iter().any(|net| net.ip() == IpAddr::V4(source_ip)))
+                .ok_or(NtkError::IpIfAssociationError(source_ip.to_string()))?;
+            debug!(verbose, "ARPing for gateway MAC at {gw_ip}");
+            crate::commands::discover::resolve_mac_for_ip(
+                &pnet_iface,
+                source_ip,
+                gw_ip,
+                Duration::from_secs(3),
+            )?
         }
-        let o = gw.mac_addr.octets();
-        pnet::util::MacAddr(o[0], o[1], o[2], o[3], o[4], o[5])
     };
     debug!(verbose, "Destination MAC for ethernet frame is: {dst_mac}");
 
@@ -975,4 +983,90 @@ async fn rx_tcp_packets(
     drop(handle);
     debug!(verbose, "Dropped handle.");
     Ok(())
+}
+
+#[cfg(all(feature = "with-libpcap", target_os = "linux"))]
+fn get_gateway_ip_via_netlink(target_ip: Ipv4Addr) -> Option<Ipv4Addr> {
+    use netlink_packet_core::{NetlinkMessage, NetlinkHeader, NLM_F_REQUEST};
+    use netlink_packet_route::{
+        AddressFamily,
+        RouteNetlinkMessage,
+        route::{RouteMessage, RouteAttribute, RouteHeader, RouteProtocol, RouteScope, RouteType, RouteAddress},
+    };
+    use netlink_sys::{Socket, SocketAddr, protocols::NETLINK_ROUTE};
+
+    let mut socket = Socket::new(NETLINK_ROUTE).ok()?;
+    let addr = SocketAddr::new(0, 0);
+    socket.bind_auto().ok()?;
+    socket.connect(&addr).ok()?;
+
+    let mut route_msg = RouteMessage::default();
+    route_msg.header = RouteHeader {
+        address_family: AddressFamily::Inet,
+        destination_prefix_length: 32,
+        protocol: RouteProtocol::Unspec,
+        scope: RouteScope::Universe,
+        kind: RouteType::Unicast,
+        ..Default::default()
+    };
+    route_msg.attributes.push(
+        RouteAttribute::Destination(RouteAddress::Inet(target_ip))
+    );
+
+    let mut nl_msg = NetlinkMessage::new(
+        NetlinkHeader::default(),
+        RouteNetlinkMessage::GetRoute(route_msg).into(),
+    );
+    nl_msg.header.flags = NLM_F_REQUEST;
+    nl_msg.finalize();
+
+    let mut buf = vec![0u8; nl_msg.buffer_len()];
+    nl_msg.serialize(&mut buf);
+    socket.send(&buf, 0).ok()?;
+
+    let mut recv_buf = vec![0u8; 4096];
+    let n = socket.recv(&mut recv_buf, 0).ok()?;
+
+    let response = NetlinkMessage::<RouteNetlinkMessage>::deserialize(&recv_buf[..n]).ok()?;
+    
+    // payload is NetlinkPayload<RouteNetlinkMessage>, unwrap the inner message
+    use netlink_packet_core::NetlinkPayload;
+    if let NetlinkPayload::InnerMessage(RouteNetlinkMessage::NewRoute(msg)) = response.payload {
+        for attr in &msg.attributes {
+            if let RouteAttribute::Gateway(RouteAddress::Inet(gw)) = attr {
+                return Some(*gw);
+            }
+        }
+    }
+
+    None
+}
+
+#[cfg(all(feature = "with-libpcap", target_os = "linux"))]
+fn get_gateway_mac_from_arp_cache(
+    gateway_ip: Ipv4Addr,
+    iface_name: &str,
+) -> Option<pnet::util::MacAddr> {
+    let content = std::fs::read_to_string("/proc/net/arp").ok()?;
+    for line in content.lines().skip(1) {
+        let cols: Vec<&str> = line.split_whitespace().collect();
+        if cols.len() < 6 { continue; }
+        let ip: Ipv4Addr = cols[0].parse().ok()?;
+        let flags = u32::from_str_radix(cols[2].trim_start_matches("0x"), 16).ok()?;
+        let dev = cols[5];
+        // 0x2 = ATF_COM (complete, valid entry)
+        if ip == gateway_ip && dev == iface_name && flags & 0x2 != 0 {
+            let mac = cols[3];
+            let parts: Vec<u8> = mac.split(':')
+                .filter_map(|s| u8::from_str_radix(s, 16).ok())
+                .collect();
+            if parts.len() == 6 {
+                return Some(pnet::util::MacAddr(
+                    parts[0], parts[1], parts[2],
+                    parts[3], parts[4], parts[5],
+                ));
+            }
+        }
+    }
+    None
 }

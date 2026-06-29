@@ -33,6 +33,12 @@ url = "2.5.8"
 [target.'cfg(unix)'.dependencies]
 pnet = "0.34"
 
+# Unix, with-libpcap, multi-interface gateway resolution fallback dependencies
+[target.'cfg(target_os = "linux")'.dependencies]
+netlink-packet-core = "0.8.1"
+netlink-packet-route = "0.29.0"
+netlink-sys = "0.8.8"
+
 [features]
 default = []
 with-libpcap = ["dep:pcap", "dep:pnet"]

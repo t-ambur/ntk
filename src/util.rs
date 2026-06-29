@@ -316,19 +316,19 @@ pub fn get_netdev_friendly_name(pnet_name: &str) -> String {
         .unwrap_or(String::from("Unknown"))
 }
 
-#[cfg(target_os = "linux")]
-pub fn get_gateway_ip_from_proc(iface_name: &str) -> Option<Ipv4Addr> {
-    let content = std::fs::read_to_string("/proc/net/route").ok()?;
-    for line in content.lines().skip(1) {
-        let cols: Vec<&str> = line.split_whitespace().collect();
-        if cols.len() < 3 { continue; }
-        if cols[0] != iface_name { continue; }
-        if cols[1] != "00000000" { continue; }
-        let gw_hex = u32::from_str_radix(cols[2], 16).ok()?;
-        return Some(Ipv4Addr::from(u32::from_le(gw_hex)));
-    }
-    None
-}
+// #[cfg(target_os = "linux")]
+// pub fn get_gateway_ip_from_proc(iface_name: &str) -> Option<Ipv4Addr> {
+//     let content = std::fs::read_to_string("/proc/net/route").ok()?;
+//     for line in content.lines().skip(1) {
+//         let cols: Vec<&str> = line.split_whitespace().collect();
+//         if cols.len() < 3 { continue; }
+//         if cols[0] != iface_name { continue; }
+//         if cols[1] != "00000000" { continue; }
+//         let gw_hex = u32::from_str_radix(cols[2], 16).ok()?;
+//         return Some(Ipv4Addr::from(u32::from_le(gw_hex)));
+//     }
+//     None
+// }
 
 /// Creates a println stdout message with the words DEBUG: in front only if verbose mode is true
 macro_rules! debug {
