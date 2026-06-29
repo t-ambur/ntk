@@ -423,7 +423,7 @@ async fn handle_transport_setup_pcap(
                 .and_then(|gw| gw.ipv4.first().copied())
                 .or_else(|| {
                     #[cfg(all(feature = "with-libpcap", target_os = "linux"))]
-                    { get_gateway_ip_via_netlink(target_ip) }
+                    { get_gateway_ip_via_netlink(target_ip, verbose) }
                     #[cfg(not(target_os = "linux"))]
                     { None }
                 })
@@ -986,7 +986,9 @@ async fn rx_tcp_packets(
 }
 
 #[cfg(all(feature = "with-libpcap", target_os = "linux"))]
-fn get_gateway_ip_via_netlink(target_ip: Ipv4Addr) -> Option<Ipv4Addr> {
+fn get_gateway_ip_via_netlink(target_ip: Ipv4Addr, verbose: bool) -> Option<Ipv4Addr> {
+    debug!(verbose, "Failed to resolve gateway MAC using netdev create. Falling back to netlink...");
+
     use netlink_packet_core::{NetlinkMessage, NetlinkHeader, NLM_F_REQUEST};
     use netlink_packet_route::{
         AddressFamily,
@@ -995,8 +997,11 @@ fn get_gateway_ip_via_netlink(target_ip: Ipv4Addr) -> Option<Ipv4Addr> {
     };
     use netlink_sys::{Socket, SocketAddr, protocols::NETLINK_ROUTE};
 
+    debug!(verbose, "Grabbing socket...");
     let mut socket = Socket::new(NETLINK_ROUTE).ok()?;
+    debug!(verbose, "Grabbing address...");
     let addr = SocketAddr::new(0, 0);
+    debug!(verbose, "Address is: {:?}", addr);
     socket.bind_auto().ok()?;
     socket.connect(&addr).ok()?;
 
@@ -1020,15 +1025,24 @@ fn get_gateway_ip_via_netlink(target_ip: Ipv4Addr) -> Option<Ipv4Addr> {
     nl_msg.header.flags = NLM_F_REQUEST;
     nl_msg.finalize();
 
+    debug!(verbose, "Finalized netlink message, building buffer...");
+
     let mut buf = vec![0u8; nl_msg.buffer_len()];
     nl_msg.serialize(&mut buf);
+
+    debug!(verbose, "Sending netlink message...");
+
     socket.send(&buf, 0).ok()?;
+
+    debug!(verbose, "Awaiting rx...");
 
     let mut recv_buf = vec![0u8; 4096];
     let n = socket.recv(&mut recv_buf, 0).ok()?;
 
     let response = NetlinkMessage::<RouteNetlinkMessage>::deserialize(&recv_buf[..n]).ok()?;
     
+    debug!(verbose, "Unwrapping payload response: {:?}...", response);
+
     // payload is NetlinkPayload<RouteNetlinkMessage>, unwrap the inner message
     use netlink_packet_core::NetlinkPayload;
     if let NetlinkPayload::InnerMessage(RouteNetlinkMessage::NewRoute(msg)) = response.payload {
